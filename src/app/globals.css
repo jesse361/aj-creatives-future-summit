@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #0a1020;
+  --color-ink: #10182b;
+  --color-electric: #5578ff;
+  --color-action: #3451d1;
+  --color-lavender: #a99bff;
+  --color-mist: #aab4c8;
+  --color-paper: #f5f7fc;
+  --color-line: #e4e9f2;
+  --color-muted: #4e5d78;
+  --color-body: #1c2740;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-grotesk), ui-sans-serif, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-body);
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    color: var(--color-navy);
+  }
+
+  :focus-visible {
+    outline: 2px solid #3451d1;
+    outline-offset: 3px;
+  }
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 80;
+  border-radius: 999px;
+  background: white;
+  color: #0a1020;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.page-wrap {
+  width: min(1120px, calc(100% - 2.5rem));
+  margin-inline: auto;
+}
+
+.btn {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn-primary {
+  background: #3451d1;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #2a44b5;
+}
+
+.btn-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: white;
+}
+
+.btn-light {
+  background: white;
+  color: #0a1020;
+}
+
+.btn-light:hover:not(:disabled) {
+  background: #eef2fb;
+}
+
+.btn-ghost {
+  border: 1px solid rgba(10, 16, 32, 0.16);
+  color: #0a1020;
+  background: white;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: #0a1020;
+}
+
+.surface-card {
+  border: 1px solid var(--color-line);
+  border-radius: 1.5rem;
+  background: white;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid #d5ddec;
+  border-radius: 0.9rem;
+  background: white;
+  padding: 0.8rem 0.9rem;
+  font-size: 1rem;
+  color: #1c2740;
+}
+
+.field textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.theme-dark :focus-visible {
+  outline-color: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
