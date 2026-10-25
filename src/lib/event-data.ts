@@ -3,6 +3,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { PUBLIC_EVENT_TAG, TIER_ORDER } from "@/lib/constants";
+import { demoPublishedEvent } from "@/lib/demo-event";
 import { defaultHighlights, defaultPrivacy, defaultTerms, defaultWhyAttend } from "@/lib/defaults";
 import { isHttpUrl } from "@/lib/safe-url";
 import type { PublicEvent, PublicSettings, PublicVenue } from "@/lib/types";
@@ -26,6 +27,15 @@ export async function getPublishedEvent(): Promise<PublicEvent | null> {
   cacheTag(PUBLIC_EVENT_TAG);
   cacheLife({ stale: 60, revalidate: 60, expire: 3600 });
 
+  try {
+    return (await readPublishedEventFromDatabase()) ?? demoPublishedEvent();
+  } catch (error) {
+    console.error("Event database is unavailable. Showing demonstration content.", error);
+    return demoPublishedEvent();
+  }
+}
+
+async function readPublishedEventFromDatabase(): Promise<PublicEvent | null> {
   const event = await prisma.event.findFirst({
     where: { status: "PUBLISHED" },
     orderBy: { updatedAt: "desc" },

@@ -12,6 +12,11 @@ import { sendInquiryEmail, sendRegistrationEmail } from "@/lib/email";
 import { createCheckout } from "@/lib/payments";
 import type { ContactFormState, RegistrationFormState } from "@/lib/types";
 
+function databaseUnavailable(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  return /DATABASE_URL|database file|PrismaClient|Can't reach database|SQLITE|ECONNREFUSED/i.test(message);
+}
+
 function fieldErrors(error: { issues: { path: PropertyKey[]; message: string }[] }) {
   const errors: Record<string, string> = {};
   for (const issue of error.issues) {
@@ -81,6 +86,9 @@ export async function registerAction(_previous: RegistrationFormState, formData:
       return { ok: false, message: "Too many registration attempts. Please wait and try again." };
     }
     if (error instanceof RegistrationError) return { ok: false, message: error.message };
+    if (databaseUnavailable(error)) {
+      return { ok: false, message: "Registration is visible, but this deployment has no database yet. Connect PostgreSQL with DATABASE_URL before saving places." };
+    }
     return { ok: false, message: "We could not save your registration. Please try again." };
   }
 }
@@ -126,6 +134,9 @@ export async function submitInquiry(_previous: ContactFormState, formData: FormD
     unstable_rethrow(error);
     if (error instanceof RateLimitError) {
       return { status: "error", message: "Too many messages. Please wait and try again." };
+    }
+    if (databaseUnavailable(error)) {
+      return { status: "error", message: "The contact form is visible, but this deployment has no database yet. Connect PostgreSQL with DATABASE_URL before saving messages." };
     }
     return { status: "error", message: "We could not save your message. Please try again." };
   }

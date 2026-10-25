@@ -53,7 +53,7 @@ Admin: [http://localhost:3000/admin](http://localhost:3000/admin)
 | `npm run build` | Production build |
 | `npm start` | Serve the production build |
 
-Run `npm run db:setup` before `npm run build` so the build can read the published event.
+Run `npm run db:setup` before `npm run build` when you want the production build to read saved records. On Vercel, a SQLite file is not available, so the public pages render this demonstration programme instead of a blank screen. Saved registrations, inquiries, and admin edits need `DATABASE_URL` pointed at PostgreSQL. Change the Prisma provider to `postgresql`, push the schema, and seed before treating those records as persistent.
 
 ## What you can edit without code
 
