@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" role="img">
+  <rect width="400" height="500" fill="#10182B"/>
+  <circle cx="200" cy="190" r="78" fill="#A99BFF"/>
+  <rect x="78" y="300" width="244" height="150" rx="75" fill="#A99BFF" opacity="0.85"/>
+  <text x="200" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#0A1020">LO</text>
+  <text x="200" y="470" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" letter-spacing="4" fill="#AAB4C8">SAMPLE</text>
+</svg>

@@ -1,0 +1,258 @@
+// Local persistence uses SQLite so the site runs without a database server.
+// PostgreSQL was not available in this environment. To switch, change the
+// provider to "postgresql", point DATABASE_URL at your database, and run
+// `npx prisma db push`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  tagline            String
+  description        String
+  startAt            DateTime?
+  endAt              DateTime?
+  datesConfirmed     Boolean  @default(false)
+  timezone           String   @default("UTC")
+  timezoneConfirmed  Boolean  @default(false)
+  format             String?
+  formatConfirmed    Boolean  @default(false)
+  heroImageUrl       String   @default("")
+  status             String   @default("DRAFT")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  venue          Venue?
+  settings       EventSettings?
+  speakers       Speaker[]
+  sessions       Session[]
+  ticketTypes    TicketType[]
+  registrations  Registration[]
+  sponsors       Sponsor[]
+  inquiries      ContactInquiry[]
+
+  @@index([status])
+}
+
+model Venue {
+  id              String  @id @default(cuid())
+  eventId         String  @unique
+  event           Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  confirmed       Boolean @default(false)
+  name            String  @default("")
+  streetAddress   String  @default("")
+  city            String  @default("")
+  country         String  @default("")
+  publicTransport String  @default("")
+  parking         String  @default("")
+  accessibility   String  @default("")
+  accommodation   String  @default("")
+  directionsUrl   String  @default("")
+  mapEmbedUrl     String  @default("")
+  travelSummary   String  @default("")
+  hoursLabel      String  @default("")
+}
+
+model EventSettings {
+  id                 String @id @default(cuid())
+  eventId            String @unique
+  event              Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizerName      String
+  contactEmail       String @default("")
+  contactPhone       String @default("")
+  socialLinks        String @default("[]")
+  currency           String @default("USD")
+  currencyConfirmed  Boolean @default(false)
+  registrationOpen   Boolean @default(true)
+  phoneRequired      Boolean @default(false)
+  privacyNotice      String @default("")
+  termsText          String @default("")
+  whyAttend          String @default("[]")
+  highlights         String @default("[]")
+  heroEyebrow        String @default("")
+  heroDescription    String @default("")
+  ctaHeadline        String @default("")
+  ctaDescription     String @default("")
+  nextEventUrl       String @default("")
+  nextEventLabel     String @default("")
+}
+
+model Speaker {
+  id              String   @id @default(cuid())
+  eventId         String
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name            String
+  slug            String
+  biography       String
+  jobTitle        String
+  organization    String
+  portraitUrl     String   @default("")
+  portraitIsSample Boolean @default(true)
+  expertise       String   @default("[]")
+  socialLinks     String   @default("[]")
+  isSample        Boolean  @default(true)
+  published       Boolean  @default(false)
+  featured        Boolean  @default(false)
+  displayOrder    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  sessions        SessionSpeaker[]
+
+  @@unique([eventId, slug])
+  @@index([eventId, published])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title        String
+  description  String   @default("")
+  startAt      DateTime
+  endAt        DateTime
+  room         String   @default("")
+  category     String
+  isBreak      Boolean  @default(false)
+  published    Boolean  @default(false)
+  isSample     Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  speakers     SessionSpeaker[]
+
+  @@index([eventId, startAt])
+}
+
+model SessionSpeaker {
+  sessionId String
+  speakerId String
+  role      String  @default("SPEAKER")
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  speaker   Speaker @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, speakerId])
+  @@index([speakerId])
+}
+
+model TicketType {
+  id              String    @id @default(cuid())
+  eventId         String
+  event           Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name            String
+  slug            String
+  description     String    @default("")
+  priceCents      Int
+  currency        String
+  benefits        String    @default("[]")
+  capacity        Int
+  sold            Int       @default(0)
+  salesStart      DateTime?
+  salesEnd        DateTime?
+  active          Boolean   @default(true)
+  isSample        Boolean   @default(true)
+  eligibilityNote String    @default("")
+  displayOrder    Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  registrations   Registration[]
+
+  @@unique([eventId, slug])
+  @@index([eventId, active])
+}
+
+model Registration {
+  id              String   @id @default(cuid())
+  reference       String   @unique
+  idempotencyKey  String   @unique
+  eventId         String
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId    String
+  ticketType      TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+  attendeeName    String
+  email           String
+  phone           String   @default("")
+  organization    String   @default("")
+  jobTitle        String   @default("")
+  quantity        Int
+  dietaryNotes    String   @default("")
+  termsAccepted   Boolean
+  status          String
+  paymentStatus   String
+  amountCents     Int
+  currency        String
+  emailStatus     String   @default("SKIPPED")
+  paymentReference String  @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([eventId, email])
+  @@index([eventId, status])
+  @@index([eventId, createdAt])
+}
+
+model Sponsor {
+  id           String   @id @default(cuid())
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name         String
+  logoUrl      String   @default("")
+  website      String   @default("")
+  tier         String
+  displayOrder Int      @default(0)
+  active       Boolean  @default(true)
+  isSample     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([eventId, active])
+}
+
+model ContactInquiry {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  category  String
+  message   String
+  status    String   @default("NEW")
+  createdAt DateTime @default(now())
+
+  @@index([eventId, status])
+  @@index([eventId, createdAt])
+}
+
+model AdminUser {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  role         String         @default("ADMIN")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  sessions     AdminSession[]
+}
+
+model AdminSession {
+  id        String    @id
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model RateLimit {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+}
