@@ -1,231 +1,250 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Compass, Cpu, Lightbulb, PenTool, Users } from "lucide-react";
+import { Compass, Handshake, Mic2, Sparkles, Users, Waypoints } from "lucide-react";
 import type { Metadata } from "next";
 import { Countdown } from "@/components/countdown";
-import { JsonLd } from "@/components/json-ld";
-import { SpeakerCard } from "@/components/speaker-card";
-import { SponsorGrid } from "@/components/sponsor-grid";
-import { Badge, ButtonLink, SectionHeading } from "@/components/ui";
-import { VenuePanel } from "@/components/venue-panel";
+import { EventCard } from "@/components/event-card";
+import { NewsletterForm } from "@/components/newsletter-form";
+import { ButtonLink, DemoNote, SectionHeading } from "@/components/ui";
 import { FORMAT_LABELS } from "@/lib/constants";
-import { getPublishedEvent } from "@/lib/event-data";
-import { formatMoney } from "@/lib/money";
-import { buildStructuredData } from "@/lib/structured-data";
-import { formatTimeRange } from "@/lib/time";
-import { isSafeImageSrc } from "@/lib/safe-url";
-
-const icons = [Lightbulb, Cpu, Users, PenTool, Compass];
+import { eventPlace } from "@/lib/format";
+import { benefitItems, getPage, getSettings } from "@/lib/settings";
+import { getApprovedSponsors, getApprovedTestimonials, getFeaturedEvent, getPreviewSessions, getPublishedSpeakers, getUpcomingPublished } from "@/lib/queries";
+import { formatDayLabel, formatTimeRange } from "@/lib/time";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const event = await getPublishedEvent();
-  const title = `${event?.name ?? "THE FUTURE SUMMIT 2027"} · AJ CREATIVES`;
-  const description = event?.settings.heroDescription ?? "Ideas That Shape Tomorrow.";
-  return { title, description, openGraph: { title, description } };
+  const settings = await getSettings();
+  return {
+    title: settings.seoTitle,
+    description: settings.seoDescription,
+    openGraph: { title: settings.seoTitle, description: settings.seoDescription },
+  };
 }
 
-function Unpublished() {
-  return (
-    <section className="mx-auto max-w-3xl px-4 py-24">
-      <h1 className="font-display text-4xl text-navy">The Future Summit</h1>
-      <p className="mt-4 leading-7">This event has not been published yet.</p>
-    </section>
-  );
-}
+const experienceImages = [
+  { src: "/images/hero.jpg", title: "Conferences", text: "Rooms built for ideas that need an audience." },
+  { src: "/images/stage.jpg", title: "Summits", text: "Stages for the conversations that move a field forward." },
+  { src: "/images/workshop.jpg", title: "Workshops", text: "Smaller rooms, practical work, and time to try the idea." },
+  { src: "/images/networking.jpg", title: "Networking", text: "Introductions with a point, not a pile of badges." },
+  { src: "/images/conversation.jpg", title: "Private gatherings", text: "Corporate and invitation-led experiences, hosted with care." },
+];
+
+const icons = [Handshake, Mic2, Sparkles, Compass, Users, Waypoints];
 
 export default async function HomePage() {
-  const event = await getPublishedEvent();
-  if (!event) return <Unpublished />;
-
-  const featured = event.speakers.filter((speaker) => speaker.featured);
-  const speakers = (featured.length ? featured : event.speakers).slice(0, 4);
-  const previewSessions = event.sessions.slice(0, 5);
-  const dateLabel = event.datesConfirmed ? `${event.startAt ? new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: event.timezone }).format(new Date(event.startAt)) : ""}` : "[EVENT DATE]";
-  const venueLabel = event.venue.confirmed ? [event.venue.name, event.venue.city].filter(Boolean).join(", ") : "[VENUE NAME, CITY]";
-  const formatLabel = event.formatConfirmed && event.format ? FORMAT_LABELS[event.format] ?? event.format : "[IN-PERSON, VIRTUAL, OR HYBRID]";
-  const hero = event.heroImageUrl && isSafeImageSrc(event.heroImageUrl) && event.heroImageUrl.startsWith("/") ? event.heroImageUrl : "/images/hero.jpg";
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const [settings, about, benefitsPage, featured, upcoming, speakers, sponsors, testimonials] = await Promise.all([
+    getSettings(),
+    getPage("home-about"),
+    getPage("benefits"),
+    getFeaturedEvent(),
+    getUpcomingPublished(6),
+    getPublishedSpeakers(),
+    getApprovedSponsors(),
+    getApprovedTestimonials(),
+  ]);
+  const benefits = benefitItems(benefitsPage?.body);
+  const previewEvent = upcoming[0];
+  const previewSessions = previewEvent ? await getPreviewSessions(previewEvent.id) : [];
 
   return (
     <>
-      <JsonLd data={buildStructuredData(event, siteUrl)} />
-      <section className="relative overflow-hidden bg-navy text-white">
-        <div className="absolute inset-0">
-          <Image
-            src={hero}
-            alt="Illustrative photograph of a conference audience. Not a photograph of The Future Summit."
-            fill
-            priority
-            className="object-cover opacity-40"
-            sizes="100vw"
-          />
-          <div className="hero-shade absolute inset-0" />
-        </div>
-        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-24">
+      <section className="relative min-h-[78vh] overflow-hidden bg-navy text-white">
+        <Image src="/images/hero.jpg" alt="Illustrative photograph of a conference audience. Not a confirmed WHY US event." fill priority className="object-cover" sizes="100vw" />
+        <div className="hero-shade absolute inset-0" />
+        <div className="relative mx-auto grid max-w-6xl items-end gap-12 px-4 py-20 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-28">
           <div className="lg:col-span-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-lavender">{event.settings.heroEyebrow}</p>
-            <h1 className="mt-4 font-display text-5xl font-semibold tracking-tight sm:text-7xl">{event.name}</h1>
-            <p className="mt-4 font-display text-2xl text-white sm:text-3xl">{event.tagline}</p>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-mist">{event.settings.heroDescription}</p>
-            <dl className="mt-8 grid gap-3 sm:grid-cols-3">
-              {[
-                ["Date", dateLabel],
-                ["Venue", venueLabel],
-                ["Format", formatLabel],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
-                  <dt className="text-xs uppercase tracking-[0.16em] text-mist">{label}</dt>
-                  <dd className="mt-1 font-medium text-white">{value}</dd>
-                </div>
-              ))}
-            </dl>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gold">{settings.legalName}</p>
+            <h1 className="mt-5 font-display text-5xl font-medium leading-[0.95] tracking-tight sm:text-7xl">
+              WHERE IDEAS MEET.
+              <span className="mt-2 block">WHERE CONNECTIONS BEGIN.</span>
+            </h1>
+            <div className="gold-rule mt-6" />
+            <p className="mt-6 max-w-xl text-lg leading-8 text-white/85">
+              Discover exceptional conferences, connect with inspiring people, and experience events designed to turn ideas into opportunities.
+            </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink href="/tickets">GET YOUR TICKET</ButtonLink>
-              <ButtonLink href="#why-attend" variant="secondary">
-                EXPLORE THE EVENT
-              </ButtonLink>
+              <ButtonLink href="/events">Explore Events</ButtonLink>
+              <ButtonLink href="/about" variant="secondary">Discover WHY US</ButtonLink>
             </div>
           </div>
-          <div className="lg:col-span-5">
-            <Countdown
-              startAt={event.startAt}
-              endAt={event.endAt}
-              datesConfirmed={event.datesConfirmed}
-              nextEventUrl={event.settings.nextEventUrl}
-              nextEventLabel={event.settings.nextEventLabel}
-            />
+          <aside className="border border-white/15 bg-navy/70 p-6 backdrop-blur lg:col-span-5">
+            {featured ? (
+              <>
+                <p className="text-xs uppercase tracking-[0.18em] text-gold">Next event</p>
+                <h2 className="mt-3 font-display text-3xl">{featured.title}</h2>
+                <p className="mt-3 text-sm text-mist">{formatDayLabel(featured.startDate.toISOString(), featured.timezone)}</p>
+                <p className="text-sm text-mist">{eventPlace(featured)} · {FORMAT_LABELS[featured.eventFormat]}</p>
+                <div className="mt-5">
+                  <Countdown startAt={featured.startDate.toISOString()} endAt={featured.endDate.toISOString()} />
+                </div>
+                <div className="mt-6">
+                  <ButtonLink href={`/events/${featured.slug}`} variant="light">View event</ButtonLink>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs uppercase tracking-[0.18em] text-gold">The platform</p>
+                <h2 className="mt-3 font-display text-3xl">{settings.secondaryTagline}</h2>
+                <p className="mt-4 text-sm leading-6 text-mist">
+                  No confirmed upcoming event is published yet. Explore the programme as announcements are added, or preview the demonstration content in the directory.
+                </p>
+                <div className="mt-6">
+                  <ButtonLink href="/events" variant="light">Explore future announcements</ButtonLink>
+                </div>
+              </>
+            )}
+          </aside>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <SectionHeading eyebrow="The programme" title="Upcoming events" description="Published events from the WHY US calendar. Demonstration entries are labeled until the owner replaces them." />
+          <ButtonLink href="/events" variant="ghost">All events</ButtonLink>
+        </div>
+        {upcoming.length ? (
+          <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {upcoming.map((event) => <EventCard key={event.id} event={event} />)}
+          </div>
+        ) : (
+          <p className="mt-10 border border-dashed border-line px-6 py-12 text-ink-soft">Published events will appear here. Nothing is confirmed yet.</p>
+        )}
+      </section>
+
+      <section className="bg-navy text-white">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeading light eyebrow="Why WHY US" title="Why choose WHY US?" description="A conference platform for people who want the room to matter." />
+          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {benefits.map((benefit, index) => {
+              const Icon = icons[index % icons.length];
+              return (
+                <article key={benefit.title} className="border-t border-white/15 pt-5">
+                  <div className="flex items-center justify-between">
+                    <Icon aria-hidden className="text-gold" size={20} />
+                    <span className="font-display text-gold">0{index + 1}</span>
+                  </div>
+                  <h3 className="mt-6 font-display text-2xl">{benefit.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-mist">{benefit.description}</p>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <section id="why-attend" className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="The gathering" title="WHY ATTEND?" description="These reasons describe the published programme. Sample sessions are marked anywhere the agenda is still a demonstration." />
-        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {event.settings.whyAttend.map((item, index) => {
-            const Icon = icons[index % icons.length] ?? Lightbulb;
-            return (
-              <article key={item.title} className="rounded-3xl border border-line bg-white p-6">
-                <Icon className="text-electric-deep" aria-hidden="true" />
-                <h3 className="mt-4 font-display text-xl text-navy">{item.title}</h3>
-                <p className="mt-2 leading-7 text-slate">{item.description}</p>
-              </article>
-            );
-          })}
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:px-8">
+        <div>
+          <SectionHeading eyebrow="The company" title={about?.title || "People, ideas, and opportunities"} description={about?.body || "WHY US is the home for conferences, summits, workshops, and private gatherings that bring serious people into the same room."} />
+          <div className="mt-8">
+            <ButtonLink href="/about">Read our story</ButtonLink>
+          </div>
+        </div>
+        <div className="relative min-h-80">
+          <Image src="/images/conversation.jpg" alt="Illustrative photograph of a professional conversation. Not a confirmed WHY US event." fill className="object-cover" sizes="(min-width: 1024px) 40vw, 100vw" />
         </div>
       </section>
 
-      <section className="bg-white py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <SectionHeading eyebrow="Programme" title="Featured speakers" description="Profiles marked Sample are demonstration people. They have not confirmed participation." />
-            <Link href="/speakers" className="text-sm font-semibold text-electric-deep">
-              All speakers
-            </Link>
-          </div>
+      <section className="border-y border-line bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeading eyebrow="Voices" title="Featured speakers" description="Published profiles only. Demonstration profiles are marked and are not confirmed appearances." />
           {speakers.length ? (
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {speakers.map((speaker) => (
-                <SpeakerCard key={speaker.id} speaker={speaker} />
+              {speakers.slice(0, 4).map((speaker) => (
+                <Link key={speaker.id} href={`/speakers/${speaker.slug}`} className="group border border-line p-4">
+                  <div className="grid aspect-square place-items-center bg-paper text-4xl font-display text-navy">{speaker.name.slice(0, 1)}</div>
+                  <div className="mt-4 flex flex-wrap gap-2">{speaker.isDemonstration ? <DemoNote /> : null}</div>
+                  <h3 className="mt-3 font-display text-2xl group-hover:text-electric">{speaker.name}</h3>
+                  <p className="text-sm text-ink-soft">{speaker.professionalTitle}</p>
+                </Link>
               ))}
             </div>
           ) : (
-            <p className="mt-8">Speaker profiles have not been published yet.</p>
+            <p className="mt-8 text-ink-soft">Speaker profiles will appear when they are published.</p>
           )}
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Themes" title="What the summit explores" />
-        <div className="mt-10 grid gap-4 md:grid-cols-2">
-          {event.settings.highlights.map((item) => (
-            <article key={item.title} className="overflow-hidden rounded-3xl bg-ink text-white">
-              {item.image && isSafeImageSrc(item.image) && item.image.startsWith("/") ? (
-                <div className="relative h-48">
-                  <Image src={item.image} alt="" fill className="object-cover opacity-70" sizes="(min-width: 768px) 50vw, 100vw" />
+        <SectionHeading eyebrow="Agenda" title="Schedule preview" description={previewEvent ? `Sessions from ${previewEvent.title}.` : "A published agenda will appear with the next event."} />
+        {previewEvent?.isDemonstration ? <div className="mt-4"><DemoNote>Demonstration agenda</DemoNote></div> : null}
+        <div className="mt-8 grid gap-4">
+          {previewSessions.map((session) => (
+            <article key={session.id} className="grid gap-2 border-b border-line py-4 md:grid-cols-[180px_1fr]">
+              <p className="text-sm text-electric">{formatTimeRange(session.startAt, session.endAt, previewEvent?.timezone || "UTC")}</p>
+              <div>
+                <h3 className="font-display text-2xl text-navy">{session.title}</h3>
+                <p className="text-sm text-ink-soft">{session.speakers.map((speaker) => speaker.name).join(", ") || session.category}</p>
+              </div>
+            </article>
+          ))}
+          {previewSessions.length === 0 ? <p className="text-ink-soft">No published sessions yet.</p> : null}
+        </div>
+      </section>
+
+      <section className="bg-ink text-white">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeading light eyebrow="Experiences" title="Built for the way people gather" />
+          <div className="mt-10 grid gap-4 md:grid-cols-4 md:grid-rows-2">
+            {experienceImages.map((item, index) => (
+              <article key={item.title} className={`relative min-h-56 overflow-hidden ${index === 0 ? "md:col-span-2 md:row-span-2 md:min-h-[36rem]" : ""}`}>
+                <Image src={item.src} alt={`Illustrative photograph representing ${item.title.toLowerCase()}. Not a confirmed WHY US event.`} fill className="object-cover" sizes="(min-width: 768px) 25vw, 100vw" />
+                <div className="absolute inset-0 bg-gradient-to-t from-navy via-navy/20 to-transparent" />
+                <div className="absolute bottom-0 p-5">
+                  <h3 className="font-display text-3xl">{item.title}</h3>
+                  <p className="mt-2 max-w-xs text-sm text-white/80">{item.text}</p>
                 </div>
-              ) : null}
-              <div className="p-6">
-                <h3 className="font-display text-2xl">{item.title}</h3>
-                <p className="mt-2 leading-7 text-mist">{item.description}</p>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="bg-white py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <SectionHeading eyebrow="Agenda" title="Schedule preview" description={event.datesConfirmed ? "A short look at the published agenda." : "A short look at the sample agenda. Times are not a confirmed schedule."} />
-            <ButtonLink href="/schedule" variant="ghost">
-              View the full schedule
-            </ButtonLink>
-          </div>
-          {previewSessions.length === 0 ? (
-            <p className="mt-8">The schedule has not been published yet.</p>
-          ) : (
-            <ol className="mt-8 space-y-3">
-              {previewSessions.map((session) => (
-                <li key={session.id} className="grid gap-2 rounded-3xl border border-line bg-paper px-5 py-4 sm:grid-cols-[9rem_1fr]">
-                  <time className="font-semibold text-navy" dateTime={session.startAt}>
-                    {formatTimeRange(session.startAt, session.endAt, event.timezone)}
-                  </time>
-                  <div>
-                    <p className="font-display text-lg text-navy">{session.title}</p>
-                    <p className="text-sm text-slate">
-                      {session.speakers.map((speaker) => speaker.name).join(", ") || (session.isBreak ? "Break" : "Speaker to be announced")}
-                      {session.isSample ? " · Sample" : ""}
-                    </p>
-                  </div>
-                </li>
+      {sponsors.length ? (
+        <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeading eyebrow="Partners" title="Sponsors and partners" />
+          <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {sponsors.map((sponsor) => (
+              <li key={sponsor.id} className="border border-line bg-white p-5">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-gold">{sponsor.tier}</p>
+                <p className="mt-3 font-display text-2xl">{sponsor.name}</p>
+                {sponsor.website ? <a className="mt-3 inline-block text-sm text-electric" href={sponsor.website}>Visit</a> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {testimonials.length ? (
+        <section className="bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
+            <SectionHeading eyebrow="From the room" title="Approved testimonials" />
+            <div className="mt-10 grid gap-6 lg:grid-cols-3">
+              {testimonials.map((item) => (
+                <blockquote key={item.id} className="border border-line p-6">
+                  <p className="text-lg leading-8 text-navy">“{item.quote}”</p>
+                  <footer className="mt-4 text-sm text-ink-soft">{item.name}{item.role ? `, ${item.role}` : ""}</footer>
+                </blockquote>
               ))}
-            </ol>
-          )}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Attendance" title="Tickets" description={event.settings.currencyConfirmed ? "Choose a published ticket." : "Prices below are demonstration amounts. The currency is not confirmed. GHS can be used if the organizer sets it."} />
-        <div className="mt-10 grid gap-4 lg:grid-cols-3">
-          {event.tickets.map((ticket) => (
-            <article key={ticket.id} className="rounded-3xl border border-line bg-white p-6">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-display text-2xl text-navy">{ticket.name}</h3>
-                {ticket.isSample ? <Badge>Sample price</Badge> : null}
-              </div>
-              <p className="mt-3 text-3xl font-semibold text-navy">{ticket.priceCents === 0 ? "Free" : formatMoney(ticket.priceCents, ticket.currency)}</p>
-              <p className="mt-3 text-sm leading-6 text-slate">{ticket.description}</p>
-            </article>
-          ))}
-        </div>
-        <ButtonLink href="/tickets" className="mt-8">
-          Register for the summit
-        </ButtonLink>
-      </section>
-
-      <section className="bg-white py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <SectionHeading eyebrow="Place" title="Venue" />
-          <div className="mt-8">
-            <VenuePanel event={event} />
+            </div>
           </div>
+        </section>
+      ) : null}
+
+      <section className="bg-navy text-white">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8">
+          <div>
+            <h2 className="font-display text-4xl">Stay close to the next gathering.</h2>
+            <p className="mt-3 text-sm leading-6 text-mist">Subscribe with your consent. You can unsubscribe at any time.</p>
+          </div>
+          <NewsletterForm />
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Support" title="Sponsors and partners" />
+      <section className="mx-auto max-w-6xl px-4 py-24 text-center sm:px-6 lg:px-8">
+        <p className="text-xs uppercase tracking-[0.22em] text-electric">WHY US</p>
+        <h2 className="mx-auto mt-4 max-w-3xl font-display text-5xl text-navy sm:text-6xl">YOUR NEXT GREAT EXPERIENCE STARTS HERE.</h2>
         <div className="mt-8">
-          <SponsorGrid sponsors={event.sponsors} />
-        </div>
-      </section>
-
-      <section className="bg-navy py-20 text-white">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-4xl font-semibold tracking-tight sm:text-6xl">{event.settings.ctaHeadline}</h2>
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-mist">{event.settings.ctaDescription}</p>
-          <ButtonLink href="/tickets" variant="light" className="mt-8">
-            REGISTER FOR THE SUMMIT
-          </ButtonLink>
+          <ButtonLink href="/events">Explore upcoming events</ButtonLink>
         </div>
       </section>
     </>

@@ -8,7 +8,7 @@ export function ButtonLink({
   className = "",
 }: {
   href: string;
-  variant?: "primary" | "secondary" | "light" | "ghost";
+  variant?: "primary" | "secondary" | "light" | "ghost" | "gold";
   children: React.ReactNode;
   className?: string;
 }) {
@@ -19,19 +19,14 @@ export function ButtonLink({
   );
 }
 
-export function Badge({
-  children,
-  tone = "blue",
-}: {
-  children: React.ReactNode;
-  tone?: "blue" | "light" | "line";
-}) {
+export function Badge({ children, tone = "gold" }: { children: React.ReactNode; tone?: "gold" | "blue" | "line" | "light" }) {
   const tones = {
-    blue: "bg-electric/10 text-electric-deep",
-    light: "bg-white/10 text-white",
-    line: "bg-paper text-slate",
+    gold: "border border-gold/50 text-gold",
+    blue: "border border-electric/30 text-electric",
+    line: "border border-line text-ink-soft",
+    light: "border border-white/20 text-white",
   };
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}>{children}</span>;
+  return <span className={`inline-flex px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${tones[tone]}`}>{children}</span>;
 }
 
 export function SectionHeading({
@@ -47,29 +42,39 @@ export function SectionHeading({
 }) {
   return (
     <div className="max-w-2xl">
-      <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${light ? "text-lavender" : "text-electric-deep"}`}>{eyebrow}</p>
-      <h2 className={`mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl ${light ? "text-white" : "text-navy"}`}>{title}</h2>
-      {description ? <p className={`mt-4 text-base leading-7 ${light ? "text-mist" : "text-slate"}`}>{description}</p> : null}
+      <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${light ? "text-gold" : "text-electric"}`}>{eyebrow}</p>
+      <h2 className={`mt-3 font-display text-4xl font-medium tracking-tight sm:text-5xl ${light ? "text-white" : "text-navy"}`}>{title}</h2>
+      {description ? <p className={`mt-4 text-base leading-7 ${light ? "text-mist" : "text-ink-soft"}`}>{description}</p> : null}
     </div>
   );
 }
 
-export function PageIntro({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-}) {
+export function PageHero({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return (
     <section className="bg-navy text-white">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-lavender">{eyebrow}</p>
-        <h1 className="mt-3 max-w-3xl font-display text-4xl font-semibold tracking-tight sm:text-6xl">{title}</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gold">{eyebrow}</p>
+        <h1 className="mt-4 max-w-4xl font-display text-5xl font-medium tracking-tight sm:text-6xl">{title}</h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-mist">{description}</p>
       </div>
     </section>
   );
+}
+
+export function EmptyState({ title, body, action }: { title: string; body: string; action?: { href: string; label: string } }) {
+  return (
+    <div className="border border-dashed border-line bg-white px-6 py-14 text-center">
+      <h2 className="font-display text-2xl text-navy">{title}</h2>
+      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-ink-soft">{body}</p>
+      {action ? (
+        <div className="mt-6">
+          <ButtonLink href={action.href}>{action.label}</ButtonLink>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function DemoNote({ children = "Demonstration" }: { children?: React.ReactNode }) {
+  return <Badge tone="line">{children}</Badge>;
 }

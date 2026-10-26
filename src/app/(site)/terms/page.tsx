@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
-import { getPublishedEvent } from "@/lib/event-data";
+import { PageHero } from "@/components/ui";
+import { getPage } from "@/lib/settings";
 
-export const metadata: Metadata = {
-  title: "Registration terms · AJ CREATIVES",
-  description: "Registration terms for The Future Summit. Sample terms apply until the organizer replaces them.",
-};
+export const metadata: Metadata = { title: "Terms", description: "Terms for using WHY US and attending its events." };
 
 export default async function TermsPage() {
-  const event = await getPublishedEvent();
+  const page = await getPage("terms");
   return (
-    <article className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <h1 className="font-display text-4xl text-navy">Registration terms</h1>
-      <div className="mt-6 whitespace-pre-wrap leading-8 text-slate">{event?.settings.termsText}</div>
-    </article>
+    <>
+      <PageHero eyebrow="Legal" title={page?.title || "Terms"} description="These terms are a starting point for the organizer to edit. They are not a substitute for legal advice." />
+      <article className="mx-auto max-w-3xl whitespace-pre-line px-4 py-14 text-base leading-7 text-ink-soft sm:px-6">{page?.body}</article>
+    </>
   );
 }

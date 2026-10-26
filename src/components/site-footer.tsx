@@ -1,83 +1,61 @@
 import Link from "next/link";
-import { CopyrightYear } from "@/components/copyright-year";
-import type { PublicEvent } from "@/lib/types";
+import { cacheLife } from "next/cache";
+import type { PublicSettings } from "@/lib/settings";
+import { NewsletterForm } from "@/components/newsletter-form";
 
-const links = [
-  { href: "/", label: "Home" },
-  { href: "/speakers", label: "Speakers" },
-  { href: "/schedule", label: "Schedule" },
-  { href: "/tickets", label: "Tickets" },
-  { href: "/contact", label: "Contact" },
-];
+async function copyrightYear() {
+  "use cache";
+  cacheLife({ stale: 3600, revalidate: 86400, expire: 604800 });
+  return new Date().getFullYear();
+}
 
-export function SiteFooter({ event }: { event: PublicEvent | null }) {
-  const venue = event?.venue.confirmed
-    ? [event.venue.name, event.venue.streetAddress, event.venue.city, event.venue.country].filter(Boolean).join(", ")
-    : "";
-
+export async function SiteFooter({ settings }: { settings: PublicSettings }) {
+  const year = await copyrightYear();
   return (
-    <footer className="bg-navy text-mist">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
-        <div>
-          <p className="font-display text-lg font-semibold tracking-[0.16em] text-white">AJ CREATIVES</p>
-          <p className="mt-3 leading-7">{event?.tagline ?? "Ideas That Shape Tomorrow."}</p>
-          <p className="mt-3 text-sm leading-6">{event?.description ?? "A summit for technology, creativity, and professional connection."}</p>
+    <footer className="bg-navy text-white">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-12 lg:px-8">
+        <div className="lg:col-span-4">
+          <p className="font-display text-2xl tracking-[0.18em]">{settings.brandName}</p>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-mist">{settings.footerContent}</p>
         </div>
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-white">Explore</h2>
-          <ul className="mt-4 space-y-2">
-            {links.map((link) => (
-              <li key={link.href}>
-                <Link href={link.href} className="hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-lavender">
-                  {link.label}
-                </Link>
-              </li>
+        <div className="lg:col-span-2">
+          <p className="text-xs uppercase tracking-[0.18em] text-gold">Explore</p>
+          <ul className="mt-4 grid gap-2 text-sm text-white/85">
+            <li><Link href="/events">Events</Link></li>
+            <li><Link href="/speakers">Speakers</Link></li>
+            <li><Link href="/schedule">Schedule</Link></li>
+            <li><Link href="/tickets">Tickets</Link></li>
+            <li><Link href="/about">About</Link></li>
+            <li><Link href="/faq">FAQ</Link></li>
+          </ul>
+        </div>
+        <div className="lg:col-span-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-gold">Contact</p>
+          <ul className="mt-4 grid gap-2 text-sm text-white/85">
+            {settings.contactEmail ? <li><a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a></li> : <li>Email not published yet</li>}
+            {settings.contactPhone ? <li>{settings.contactPhone}</li> : null}
+            {settings.address ? <li className="whitespace-pre-line">{settings.address}</li> : <li>Address not published yet</li>}
+            {settings.socialLinks.map((link) => (
+              <li key={link.url}><a href={link.url}>{link.label}</a></li>
             ))}
           </ul>
         </div>
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-white">Contact</h2>
-          {event?.settings.contactEmail ? (
-            <a className="mt-4 block hover:text-white" href={`mailto:${event.settings.contactEmail}`}>
-              {event.settings.contactEmail}
-            </a>
-          ) : (
-            <p className="mt-4 leading-7">A public email has not been published yet. Use the contact form.</p>
-          )}
-          {event?.settings.contactPhone ? <p className="mt-2">{event.settings.contactPhone}</p> : null}
-          {event?.settings.socialLinks.length ? (
-            <ul className="mt-4 space-y-2">
-              {event.settings.socialLinks.map((link) => (
-                <li key={link.url}>
-                  <a href={link.url} className="hover:text-white" rel="noreferrer">
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-4 text-sm leading-6">Social links will appear after the organizer adds them.</p>
-          )}
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-white">Visit</h2>
-          <p className="mt-4 leading-7">{venue || "Venue details coming soon."}</p>
-          <ul className="mt-4 space-y-2">
-            <li>
-              <Link href="/privacy" className="hover:text-white">
-                Privacy policy
-              </Link>
-            </li>
-            <li>
-              <Link href="/terms" className="hover:text-white">
-                Registration terms
-              </Link>
-            </li>
-          </ul>
+        <div className="lg:col-span-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-gold">Newsletter</p>
+          <div className="mt-4">
+            <NewsletterForm compact />
+          </div>
         </div>
       </div>
-      <div className="border-t border-white/10 px-4 py-5 text-center text-sm">
-        © <CopyrightYear /> AJ CREATIVES. All rights reserved.
+      <div className="border-t border-white/10">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs uppercase tracking-[0.14em] text-mist sm:px-6 lg:px-8">
+          <p>© {year} {settings.legalName}</p>
+          <div className="flex gap-4">
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
+            <Link href="/contact">Contact</Link>
+          </div>
+        </div>
       </div>
     </footer>
   );

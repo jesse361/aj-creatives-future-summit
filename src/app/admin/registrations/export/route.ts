@@ -1,44 +1,43 @@
-import { getCurrentAdmin } from "@/lib/auth";
-import { getAdminEvent } from "@/lib/admin-data";
 import { prisma } from "@/lib/db";
+import { getCurrentAdmin } from "@/lib/auth";
+import { canExportAttendees } from "@/lib/permissions";
 import { toCsv } from "@/lib/csv";
-import { registrationWhere } from "@/lib/registration";
 
 export async function GET(request: Request) {
   const admin = await getCurrentAdmin();
-  if (!admin) return new Response("Unauthorized", { status: 401 });
-  const event = await getAdminEvent();
-  if (!event) return new Response("Event not found", { status: 404 });
+  if (!admin || !canExportAttendees(admin.role)) return new Response("Unauthorized", { status: 401 });
   const url = new URL(request.url);
+  const eventId = url.searchParams.get("eventId") ?? "";
+  const status = url.searchParams.get("status") ?? "";
   const registrations = await prisma.registration.findMany({
-    where: registrationWhere(event.id, url.searchParams.get("q") ?? "", url.searchParams.get("status") ?? "ALL"),
-    include: { ticketType: true },
+    where: {
+      ...(eventId ? { eventId } : {}),
+      ...(status ? { registrationStatus: status as "CONFIRMED" | "PENDING_PAYMENT" | "CANCELLED" | "EXPIRED" | "FAILED" } : {}),
+    },
+    include: { event: true, items: true, payment: true },
     orderBy: { createdAt: "desc" },
+    take: 5000,
   });
   const csv = toCsv(
-    ["Reference", "Name", "Email", "Phone", "Organization", "Role", "Ticket", "Quantity", "Amount", "Currency", "Status", "Payment", "Notes", "Created"],
+    ["reference", "event", "name", "email", "phone", "organization", "status", "total", "currency", "payment", "created"],
     registrations.map((registration) => [
       registration.reference,
+      registration.event.title,
       registration.attendeeName,
-      registration.email,
-      registration.phone,
+      registration.attendeeEmail,
+      registration.attendeePhone,
       registration.organization,
-      registration.jobTitle,
-      registration.ticketType.name,
-      registration.quantity,
-      (registration.amountCents / 100).toFixed(2),
+      registration.registrationStatus,
+      (registration.totalAmount / 100).toFixed(2),
       registration.currency,
-      registration.status,
-      registration.paymentStatus,
-      registration.dietaryNotes,
+      registration.payment?.paymentStatus ?? "",
       registration.createdAt.toISOString(),
     ]),
   );
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": "attachment; filename=\"registrations.csv\"",
-      "Cache-Control": "no-store",
+      "Content-Disposition": "attachment; filename=registrations.csv",
     },
   });
 }

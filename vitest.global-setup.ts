@@ -1,11 +1,11 @@
 import { execSync } from "node:child_process";
-import { rmSync } from "node:fs";
+
+const url = "postgresql://whyus:whyus_local_only@127.0.0.1:54329/whyus_test";
 
 export default function setup() {
-  rmSync("prisma/test.db", { force: true });
-  rmSync("prisma/test.db-journal", { force: true });
-  execSync("npx prisma db push --skip-generate --accept-data-loss", {
+  execSync("node scripts/ensure-postgres.mjs", { stdio: "inherit" });
+  execSync("npx prisma migrate deploy", {
     stdio: "inherit",
-    env: { ...process.env, DATABASE_URL: "file:./test.db" },
+    env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url },
   });
 }

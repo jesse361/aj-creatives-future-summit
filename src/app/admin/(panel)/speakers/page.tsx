@@ -1,63 +1,45 @@
-import Link from "next/link";
-import { deleteSpeaker, saveSpeaker } from "@/server/actions/admin";
-import { getAdminEvent } from "@/lib/admin-data";
-import { AdminStatus } from "@/components/admin-nav";
-import { buttonClass, inputClass, labelClass } from "@/lib/styles";
+import { AdminForm } from "@/components/admin-form";
+import { prisma } from "@/lib/db";
+import { inputClass, labelClass } from "@/lib/styles";
+import { deleteSpeaker, saveSpeaker } from "@/server/actions/admin-content";
 
 export const instant = false;
 
-function asLines(value: string) {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) return parsed.join(", ");
-    if (Array.isArray(parsed)) return parsed.map((item) => `${(item as { label: string }).label} | ${(item as { url: string }).url}`).join("\n");
-  } catch {
-    return "";
-  }
-  return "";
-}
-
-export default async function SpeakersAdmin({ searchParams }: { searchParams: Promise<{ edit?: string; saved?: string; error?: string }> }) {
-  const [event, query] = await Promise.all([getAdminEvent(), searchParams]);
-  if (!event) return <p>The event database has not been seeded.</p>;
-  const editing = query.edit === "new" ? null : event.speakers.find((speaker) => speaker.id === query.edit);
+export default async function SpeakersAdmin({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+  const { id } = await searchParams;
+  const [speakers, current] = await Promise.all([
+    prisma.speaker.findMany({ orderBy: { name: "asc" } }),
+    id ? prisma.speaker.findUnique({ where: { id } }) : Promise.resolve(null),
+  ]);
+  const links = Array.isArray(current?.socialLinks) ? current.socialLinks : [];
   return (
     <div className="grid gap-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-4xl text-navy">Speakers</h1>
-        <Link href="/admin/speakers?edit=new" className={buttonClass("primary")}>Add speaker</Link>
-      </div>
-      <AdminStatus saved={query.saved} error={query.error} />
-      <ul className="grid gap-3">
-        {event.speakers.map((speaker) => (
-          <li key={speaker.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3">
-            <span>{speaker.name} {speaker.isSample ? "· Sample" : ""} {speaker.published ? "" : "· Hidden"}</span>
-            <span className="flex gap-3">
-              <Link className="text-sm font-semibold text-electric-deep" href={`/admin/speakers?edit=${speaker.id}`}>Edit</Link>
-              <form action={deleteSpeaker}><input type="hidden" name="id" value={speaker.id} /><button className="text-sm text-red-800">Delete</button></form>
-            </span>
-          </li>
+      <h1 className="font-display text-4xl text-navy">Speakers</h1>
+      <ul className="grid gap-2 text-sm">
+        {speakers.map((speaker) => (
+          <li key={speaker.id}><a className="text-electric" href={`/admin/speakers?id=${speaker.id}`}>{speaker.name}</a> · {speaker.status}</li>
         ))}
       </ul>
-      {query.edit ? (
-        <form action={saveSpeaker} className="grid max-w-3xl gap-4 rounded-3xl bg-white p-5">
-          <h2 className="font-display text-2xl text-navy">{editing ? "Edit speaker" : "New speaker"}</h2>
-          <input type="hidden" name="id" value={editing?.id ?? ""} />
-          <label className={labelClass}>Name<input className={inputClass} name="name" defaultValue={editing?.name ?? ""} required /></label>
-          <label className={labelClass}>Slug<input className={inputClass} name="slug" defaultValue={editing?.slug ?? ""} /></label>
-          <label className={labelClass}>Title<input className={inputClass} name="jobTitle" defaultValue={editing?.jobTitle ?? ""} required /></label>
-          <label className={labelClass}>Organization<input className={inputClass} name="organization" defaultValue={editing?.organization ?? ""} required /></label>
-          <label className={labelClass}>Biography<textarea className={inputClass} name="biography" rows={6} defaultValue={editing?.biography ?? ""} required /></label>
-          <label className={labelClass}>Expertise, comma separated<input className={inputClass} name="expertise" defaultValue={editing ? asLines(editing.expertise) : ""} /></label>
-          <label className={labelClass}>Portrait path<input className={inputClass} name="portraitUrl" defaultValue={editing?.portraitUrl ?? ""} /></label>
-          <label className={labelClass}>Or upload a JPEG, PNG, or WebP<input className={inputClass} name="portrait" type="file" accept="image/jpeg,image/png,image/webp" /></label>
-          <label className={labelClass}>Social links, one per line as Label | https://…<textarea className={inputClass} name="social" rows={3} defaultValue={editing ? asLines(editing.socialLinks) : ""} /></label>
-          <label className={labelClass}>Display order<input className={inputClass} name="displayOrder" type="number" defaultValue={editing?.displayOrder ?? 0} /></label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="published" defaultChecked={editing?.published ?? false} /> Published</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="featured" defaultChecked={editing?.featured ?? false} /> Featured on the homepage</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="isSample" defaultChecked={editing?.isSample ?? true} /> Sample profile</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="portraitIsSample" defaultChecked={editing?.portraitIsSample ?? true} /> Portrait is a placeholder</label>
-          <button className={buttonClass("primary", "w-fit")}>Save speaker</button>
+      <AdminForm action={saveSpeaker} submitLabel={current ? "Update speaker" : "Create speaker"}>
+        {current ? <input type="hidden" name="id" value={current.id} /> : null}
+        <label className={labelClass}>Name<input className={inputClass} name="name" required defaultValue={current?.name ?? ""} /></label>
+        <label className={labelClass}>Slug<input className={inputClass} name="slug" required defaultValue={current?.slug ?? ""} /></label>
+        <label className={labelClass}>Title<input className={inputClass} name="professionalTitle" required defaultValue={current?.professionalTitle ?? ""} /></label>
+        <label className={labelClass}>Organization<input className={inputClass} name="organization" defaultValue={current?.organization ?? ""} /></label>
+        <label className={labelClass}>Biography<textarea className={`${inputClass} min-h-32`} name="biography" required defaultValue={current?.biography ?? ""} /></label>
+        <label className={labelClass}>Portrait URL<input className={inputClass} name="portrait" defaultValue={current?.portrait ?? ""} /></label>
+        <label className={labelClass}>Portrait alt<input className={inputClass} name="portraitAlt" defaultValue={current?.portraitAlt ?? ""} /></label>
+        <label className={labelClass}>Expertise, one per line<textarea className={inputClass} name="expertise" defaultValue={current?.expertise.join("\n") ?? ""} /></label>
+        <label className={labelClass}>Social label<input className={inputClass} name="socialLabel" defaultValue={typeof links[0] === "object" && links[0] && "label" in links[0] ? String(links[0].label) : ""} /></label>
+        <label className={labelClass}>Social URL<input className={inputClass} name="socialUrl" defaultValue={typeof links[0] === "object" && links[0] && "url" in links[0] ? String(links[0].url) : ""} /></label>
+        <label className={labelClass}>Status<select className={inputClass} name="status" defaultValue={current?.status ?? "DRAFT"}><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option></select></label>
+        <label className="flex gap-2 text-sm"><input type="checkbox" name="featured" defaultChecked={current?.featured ?? false} /> Featured</label>
+        <label className="flex gap-2 text-sm"><input type="checkbox" name="isDemonstration" defaultChecked={current?.isDemonstration ?? false} /> Demonstration profile</label>
+      </AdminForm>
+      {current ? (
+        <form action={deleteSpeaker}>
+          <input type="hidden" name="id" value={current.id} />
+          <button className="text-sm text-red-800" type="submit">Remove speaker</button>
         </form>
       ) : null}
     </div>

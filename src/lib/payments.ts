@@ -1,51 +1,130 @@
-import Stripe from "stripe";
+import { prisma } from "@/lib/db";
 
-function stripeClient() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return null;
-  return new Stripe(key);
-}
-
-export async function createCheckout(input: {
-  id: string;
-  reference: string;
-  email: string;
-  quantity: number;
-  amountCents: number;
-  currency: string;
-  ticketName: string;
-  eventName: string;
-}) {
-  const stripe = stripeClient();
-  if (!stripe || input.amountCents <= 0 || input.quantity < 1) return null;
-  const unitAmount = Math.round(input.amountCents / input.quantity);
-  if (unitAmount * input.quantity !== input.amountCents) return null;
-  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    customer_email: input.email,
-    client_reference_id: input.id,
-    metadata: { registrationId: input.id, reference: input.reference },
-    line_items: [
-      {
-        quantity: input.quantity,
-        price_data: {
-          currency: input.currency.toLowerCase(),
-          unit_amount: unitAmount,
-          product_data: { name: `${input.eventName} — ${input.ticketName}` },
-        },
+export async function applyVerifiedPayment(input: { reference: string; amount: number; currency: string; providerReference: string }) {
+  return prisma.$transaction(async (tx) => {
+    const registration = await tx.registration.findUnique({
+      where: { reference: input.reference },
+      include: { items: true, payment: true },
+    });
+    if (!registration || !registration.payment) return { ok: false as const, reason: "missing" as const };
+    if (registration.payment.paymentStatus === "SUCCESS" && registration.registrationStatus === "CONFIRMED") {
+      return { ok: true as const, reason: "already-paid" as const, registration };
+    }
+    if (registration.totalAmount !== input.amount || registration.currency.toUpperCase() !== input.currency.toUpperCase()) {
+      return { ok: false as const, reason: "mismatch" as const };
+    }
+    if (registration.registrationStatus !== "PENDING_PAYMENT") {
+      return { ok: false as const, reason: "not-pending" as const };
+    }
+    const claimed = await tx.registration.updateMany({
+      where: { id: registration.id, registrationStatus: "PENDING_PAYMENT" },
+      data: { registrationStatus: "CONFIRMED", holdExpiresAt: null },
+    });
+    if (claimed.count !== 1) return { ok: true as const, reason: "already-paid" as const, registration };
+    for (const item of registration.items) {
+      const ticket = await tx.ticketType.update({
+        where: { id: item.ticketTypeId },
+        data: { reserved: { decrement: item.quantity }, sold: { increment: item.quantity } },
+      });
+      if (ticket.reserved < 0 || ticket.sold < 0) throw new Error("Inventory imbalance");
+    }
+    await tx.payment.update({
+      where: { registrationId: registration.id },
+      data: {
+        paymentStatus: "SUCCESS",
+        providerReference: input.providerReference,
+        paidAt: new Date(),
+        failureReason: "",
       },
-    ],
-    success_url: `${site}/registration/${input.reference}?payment=return`,
-    cancel_url: `${site}/tickets?payment=cancelled`,
+    });
+    return { ok: true as const, reason: "paid" as const, registration };
   });
-  return session.url;
 }
 
-export function constructStripeEvent(body: string, signature: string) {
-  const key = process.env.STRIPE_SECRET_KEY;
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!key || !secret) return null;
-  const stripe = new Stripe(key);
-  return stripe.webhooks.constructEvent(body, signature, secret);
+export async function applyFailedPayment(reference: string, reason: string) {
+  return prisma.$transaction(async (tx) => {
+    const registration = await tx.registration.findUnique({
+      where: { reference },
+      include: { items: true, payment: true },
+    });
+    if (!registration || !registration.payment) return { ok: false as const, reason: "missing" as const };
+    if (registration.registrationStatus === "CONFIRMED" || registration.payment.paymentStatus === "SUCCESS") {
+      return { ok: false as const, reason: "already-paid" as const };
+    }
+    const claimed = await tx.registration.updateMany({
+      where: { id: registration.id, registrationStatus: "PENDING_PAYMENT" },
+      data: { registrationStatus: "FAILED", holdExpiresAt: null },
+    });
+    if (claimed.count !== 1) return { ok: false as const, reason: "not-pending" as const };
+    for (const item of registration.items) {
+      const ticket = await tx.ticketType.update({
+        where: { id: item.ticketTypeId },
+        data: { reserved: { decrement: item.quantity } },
+      });
+      if (ticket.reserved < 0) throw new Error("Inventory imbalance");
+    }
+    await tx.payment.update({
+      where: { registrationId: registration.id },
+      data: { paymentStatus: "FAILED", failureReason: reason.slice(0, 300) },
+    });
+    return { ok: true as const };
+  });
+}
+
+export async function releaseExpiredHolds(now = new Date()) {
+  const expired = await prisma.registration.findMany({
+    where: { registrationStatus: "PENDING_PAYMENT", holdExpiresAt: { lt: now } },
+    include: { items: true },
+    take: 50,
+  });
+  let released = 0;
+  for (const registration of expired) {
+    const did = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.registration.updateMany({
+        where: { id: registration.id, registrationStatus: "PENDING_PAYMENT" },
+        data: { registrationStatus: "EXPIRED", holdExpiresAt: null },
+      });
+      if (claimed.count !== 1) return false;
+      for (const item of registration.items) {
+        const ticket = await tx.ticketType.update({
+          where: { id: item.ticketTypeId },
+          data: { reserved: { decrement: item.quantity } },
+        });
+        if (ticket.reserved < 0) throw new Error("Inventory imbalance");
+      }
+      await tx.payment.updateMany({
+        where: { registrationId: registration.id, paymentStatus: "PENDING" },
+        data: { paymentStatus: "CANCELLED", failureReason: "Hold expired" },
+      });
+      return true;
+    });
+    if (did) released += 1;
+  }
+  return released;
+}
+
+export async function markRefunded(registrationId: string) {
+  return prisma.$transaction(async (tx) => {
+    const registration = await tx.registration.findUnique({
+      where: { id: registrationId },
+      include: { items: true, payment: true },
+    });
+    if (!registration?.payment || registration.payment.paymentStatus !== "SUCCESS") return { ok: false as const, reason: "not-paid" as const };
+    const claimed = await tx.payment.updateMany({
+      where: { id: registration.payment.id, paymentStatus: "SUCCESS" },
+      data: { paymentStatus: "REFUNDED", refundedAt: new Date() },
+    });
+    if (claimed.count !== 1) return { ok: false as const, reason: "not-paid" as const };
+    if (registration.registrationStatus === "CONFIRMED") {
+      for (const item of registration.items) {
+        const ticket = await tx.ticketType.update({
+          where: { id: item.ticketTypeId },
+          data: { sold: { decrement: item.quantity } },
+        });
+        if (ticket.sold < 0) throw new Error("Inventory imbalance");
+      }
+      await tx.registration.update({ where: { id: registration.id }, data: { registrationStatus: "CANCELLED" } });
+    }
+    return { ok: true as const, reference: registration.reference };
+  });
 }

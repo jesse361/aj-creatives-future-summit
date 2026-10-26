@@ -1,8 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { MAX_TICKETS_PER_ORDER } from "@/lib/constants";
-import { PHONE_PATTERN, type RegistrationInput } from "@/lib/schemas";
+import { PHONE_PATTERN, type RegistrationInput } from "@/lib/validation";
 import { createReference } from "@/lib/reference";
+import { releaseExpiredHolds } from "@/lib/payments";
 
 export class RegistrationError extends Error {
   constructor(
@@ -15,204 +15,172 @@ export class RegistrationError extends Error {
       | "DUPLICATE_EMAIL"
       | "PHONE"
       | "TERMS"
-      | "ELIGIBILITY"
       | "QUANTITY"
-      | "VALIDATION",
+      | "VALIDATION"
+      | "PAYMENT_UNCONFIGURED"
+      | "CANCELLED",
     message: string,
   ) {
     super(message);
   }
 }
 
-type RegistrationResult = {
-  registration: {
-    id: string;
-    reference: string;
-    email: string;
-    attendeeName: string;
-    quantity: number;
-    status: string;
-    paymentStatus: string;
-    amountCents: number;
-    currency: string;
-  };
-  created: boolean;
-  ticketName: string;
-  eventName: string;
-};
+const ACTIVE_STATUSES = ["PENDING_PAYMENT", "CONFIRMED"] as const;
 
 function prismaCode(error: unknown) {
   return typeof error === "object" && error && "code" in error ? String((error as { code: unknown }).code) : "";
 }
 
-export async function registerAttendee(input: RegistrationInput): Promise<RegistrationResult> {
+async function allocate(tx: Prisma.TransactionClient, ticketId: string, quantity: number, field: "sold" | "reserved") {
+  const rows =
+    field === "sold"
+      ? await tx.$executeRaw`
+          UPDATE "TicketType"
+          SET "sold" = "sold" + ${quantity}
+          WHERE "id" = ${ticketId}
+            AND "status" = 'ACTIVE'
+            AND ("capacity" - "sold" - "reserved") >= ${quantity}
+        `
+      : await tx.$executeRaw`
+          UPDATE "TicketType"
+          SET "reserved" = "reserved" + ${quantity}
+          WHERE "id" = ${ticketId}
+            AND "status" = 'ACTIVE'
+            AND ("capacity" - "sold" - "reserved") >= ${quantity}
+        `;
+  return rows === 1;
+}
+
+export async function registerAttendee(input: RegistrationInput, options?: { paymentConfigured?: boolean }) {
   const email = input.email.toLowerCase();
-  if (!input.termsAccepted) throw new RegistrationError("TERMS", "Agree to the terms and privacy notice to continue.");
-  if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > MAX_TICKETS_PER_ORDER) {
-    throw new RegistrationError("QUANTITY", `Choose between 1 and ${MAX_TICKETS_PER_ORDER} tickets.`);
-  }
+  if (!input.termsAccepted) throw new RegistrationError("TERMS", "Agree to the terms to continue.");
   if (input.phone && !PHONE_PATTERN.test(input.phone)) {
     throw new RegistrationError("PHONE", "Enter a phone number using digits and standard symbols.");
   }
 
+  await releaseExpiredHolds();
+
   return prisma.$transaction(async (tx) => {
-    const existingByKey = await tx.registration.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+    const existingByKey = await tx.registration.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+      include: { event: true, items: { include: { ticketType: true } } },
+    });
     if (existingByKey) {
-      const ticket = await tx.ticketType.findUnique({ where: { id: existingByKey.ticketTypeId } });
-      const event = await tx.event.findUnique({ where: { id: existingByKey.eventId } });
       return {
         registration: existingByKey,
         created: false,
-        ticketName: ticket?.name ?? "Ticket",
-        eventName: event?.name ?? "The Future Summit 2027",
+        ticketName: existingByKey.items[0]?.ticketType.name ?? "Ticket",
+        eventName: existingByKey.event.title,
       };
     }
 
-    const event = await tx.event.findFirst({
-      where: { status: "PUBLISHED" },
-      include: { settings: true },
-      orderBy: { updatedAt: "desc" },
-    });
-    if (!event || !event.settings?.registrationOpen) {
+    const event = await tx.event.findUnique({ where: { id: input.eventId } });
+    if (!event || event.status !== "PUBLISHED") throw new RegistrationError("CLOSED", "Registration is not open for that event.");
+    if (event.status === "PUBLISHED" && !event.registrationOpen) {
       throw new RegistrationError("CLOSED", "Registration is currently closed.");
-    }
-    if (event.settings.phoneRequired && !input.phone.trim()) {
-      throw new RegistrationError("PHONE", "A phone number is required for this event.");
     }
 
     const ticket = await tx.ticketType.findFirst({ where: { id: input.ticketTypeId, eventId: event.id } });
-    if (!ticket || !ticket.active) throw new RegistrationError("UNAVAILABLE", "That ticket is not available.");
+    if (!ticket || ticket.status !== "ACTIVE") throw new RegistrationError("UNAVAILABLE", "That ticket is not available.");
+    if (input.quantity < ticket.minimumQuantity || input.quantity > ticket.maximumQuantity) {
+      throw new RegistrationError("QUANTITY", `Choose between ${ticket.minimumQuantity} and ${ticket.maximumQuantity} tickets.`);
+    }
 
     const now = new Date();
-    if (ticket.salesStart && ticket.salesStart > now) {
-      throw new RegistrationError("SALES_WINDOW", "Sales for this ticket have not started.");
-    }
-    if (ticket.salesEnd && ticket.salesEnd < now) {
-      throw new RegistrationError("SALES_WINDOW", "Sales for this ticket have ended.");
-    }
-    if (ticket.eligibilityNote && !input.eligibilityAccepted) {
-      throw new RegistrationError("ELIGIBILITY", "Confirm the eligibility note before continuing.");
-    }
-    if (ticket.priceCents < 0 || ticket.priceCents * input.quantity > 100_000_000) {
+    if (ticket.salesStart && ticket.salesStart > now) throw new RegistrationError("SALES_WINDOW", "Sales for this ticket have not started.");
+    if (ticket.salesEnd && ticket.salesEnd < now) throw new RegistrationError("SALES_WINDOW", "Sales for this ticket have ended.");
+    if (ticket.priceMinor < 0 || ticket.priceMinor * input.quantity > 100_000_000) {
       throw new RegistrationError("VALIDATION", "That ticket cannot be reserved.");
     }
 
-    const existingEmail = await tx.registration.findUnique({
-      where: { eventId_email: { eventId: event.id, email } },
+    const duplicate = await tx.registration.findFirst({
+      where: { eventId: event.id, attendeeEmail: email, registrationStatus: { in: [...ACTIVE_STATUSES] } },
     });
-    if (existingEmail && existingEmail.status !== "CANCELLED") {
-      throw new RegistrationError("DUPLICATE_EMAIL", "This email address already has a registration for the summit.");
+    if (duplicate) throw new RegistrationError("DUPLICATE_EMAIL", "This email already has an active registration for the event.");
+
+    const paymentRequired = ticket.priceMinor > 0;
+    if (paymentRequired && options?.paymentConfigured === false) {
+      throw new RegistrationError("PAYMENT_UNCONFIGURED", "Paid checkout is not configured. This registration was not saved.");
     }
 
-    const reserved = await tx.ticketType.updateMany({
-      where: {
-        id: ticket.id,
-        active: true,
-        sold: { lte: ticket.capacity - input.quantity },
-      },
-      data: { sold: { increment: input.quantity } },
-    });
-    if (reserved.count !== 1) {
-      throw new RegistrationError("CAPACITY", "Not enough places remain for that quantity.");
-    }
+    const reserved = await allocate(tx, ticket.id, input.quantity, paymentRequired ? "reserved" : "sold");
+    if (!reserved) throw new RegistrationError("CAPACITY", "Not enough places remain for that quantity.");
 
-    const paymentRequired = ticket.priceCents > 0;
-    const data = {
-      reference: createReference(),
-      idempotencyKey: input.idempotencyKey,
-      eventId: event.id,
-      ticketTypeId: ticket.id,
-      attendeeName: input.fullName.trim(),
-      email,
-      phone: input.phone.trim(),
-      organization: input.organization.trim(),
-      jobTitle: input.jobTitle.trim(),
-      quantity: input.quantity,
-      dietaryNotes: input.notes.trim(),
-      termsAccepted: true,
-      status: paymentRequired ? "PENDING_PAYMENT" : "CONFIRMED",
-      paymentStatus: paymentRequired ? "UNPAID" : "NOT_REQUIRED",
-      amountCents: ticket.priceCents * input.quantity,
-      currency: ticket.currency,
-      emailStatus: "SKIPPED",
-      paymentReference: "",
-    };
-
-    const finish = (registration: RegistrationResult["registration"], created: boolean): RegistrationResult => ({
-      registration,
-      created,
-      ticketName: ticket.name,
-      eventName: event.name,
-    });
-
-    if (existingEmail?.status === "CANCELLED") {
-      const registration = await tx.registration.update({ where: { id: existingEmail.id }, data });
-      return finish(registration, true);
-    }
+    const settings = await tx.siteSettings.findUnique({ where: { id: "site" } });
+    const holdMinutes = settings?.registrationHoldMinutes ?? 30;
+    const unitPrice = ticket.priceMinor;
+    const subtotal = unitPrice * input.quantity;
+    const reference = createReference();
 
     try {
-      const registration = await tx.registration.create({ data });
-      return finish(registration, true);
+      const registration = await tx.registration.create({
+        data: {
+          reference,
+          idempotencyKey: input.idempotencyKey,
+          eventId: event.id,
+          attendeeName: input.fullName.trim(),
+          attendeeEmail: email,
+          attendeePhone: input.phone.trim(),
+          organization: input.organization.trim(),
+          registrationStatus: paymentRequired ? "PENDING_PAYMENT" : "CONFIRMED",
+          totalAmount: subtotal,
+          currency: ticket.currency.toUpperCase(),
+          termsAccepted: true,
+          holdExpiresAt: paymentRequired ? new Date(now.getTime() + holdMinutes * 60 * 1000) : null,
+          items: {
+            create: {
+              ticketTypeId: ticket.id,
+              quantity: input.quantity,
+              unitPrice,
+              subtotal,
+            },
+          },
+          ...(paymentRequired
+            ? {
+                payment: {
+                  create: {
+                    provider: "paystack",
+                    providerReference: reference,
+                    amount: subtotal,
+                    currency: ticket.currency.toUpperCase(),
+                    paymentStatus: "PENDING",
+                  },
+                },
+              }
+            : {}),
+        },
+      });
+      return { registration, created: true, ticketName: ticket.name, eventName: event.title };
     } catch (error) {
-      if (prismaCode(error) !== "P2002") throw error;
-      const details = JSON.stringify(error);
-      if (details.includes("reference")) {
-        const registration = await tx.registration.create({ data: { ...data, reference: createReference() } });
-        return finish(registration, true);
-      }
-      if (details.includes("idempotencyKey")) {
+      if (prismaCode(error) === "P2002") {
         const existing = await tx.registration.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
-        if (existing) return finish(existing, false);
+        if (existing) {
+          return { registration: existing, created: false, ticketName: ticket.name, eventName: event.title };
+        }
       }
-      throw new RegistrationError("DUPLICATE_EMAIL", "This email address already has a registration for the summit.");
+      throw error;
     }
   });
 }
 
 export async function cancelRegistrationRecord(id: string) {
   return prisma.$transaction(async (tx) => {
-    const registration = await tx.registration.findUnique({ where: { id } });
+    const registration = await tx.registration.findUnique({ where: { id }, include: { items: true, payment: true } });
     if (!registration) throw new RegistrationError("NOT_FOUND", "Registration not found.");
-    if (registration.status === "CANCELLED") return registration;
-    const ticket = await tx.ticketType.update({
-      where: { id: registration.ticketTypeId },
-      data: { sold: { decrement: registration.quantity } },
-    });
-    if (ticket.sold < 0) throw new RegistrationError("CAPACITY", "Inventory could not be released.");
-    return tx.registration.update({ where: { id }, data: { status: "CANCELLED" } });
-  });
-}
-
-export async function markRegistrationPaid(registrationId: string, paymentReference: string, amountCents: number, currency: string) {
-  return prisma.$transaction(async (tx) => {
-    const registration = await tx.registration.findUnique({ where: { id: registrationId } });
-    if (!registration || registration.status === "CANCELLED") return { updated: false, reason: "missing" as const };
-    if (registration.paymentStatus === "PAID") return { updated: false, reason: "already-paid" as const, registration };
-    if (registration.amountCents !== amountCents || registration.currency.toLowerCase() !== currency.toLowerCase()) {
-      return { updated: false, reason: "mismatch" as const };
+    if (registration.registrationStatus === "CANCELLED" || registration.registrationStatus === "EXPIRED" || registration.registrationStatus === "FAILED") {
+      return registration;
     }
-    const result = await tx.registration.updateMany({
-      where: { id: registrationId, paymentStatus: "UNPAID", status: "PENDING_PAYMENT" },
-      data: { paymentStatus: "PAID", status: "CONFIRMED", paymentReference },
-    });
-    return { updated: result.count === 1, reason: "ok" as const, registration };
+    const field = registration.registrationStatus === "CONFIRMED" ? "sold" : "reserved";
+    for (const item of registration.items) {
+      const ticket = await tx.ticketType.update({
+        where: { id: item.ticketTypeId },
+        data: field === "sold" ? { sold: { decrement: item.quantity } } : { reserved: { decrement: item.quantity } },
+      });
+      if (ticket.sold < 0 || ticket.reserved < 0) throw new RegistrationError("CAPACITY", "Inventory could not be released.");
+    }
+    if (registration.payment && registration.payment.paymentStatus === "PENDING") {
+      await tx.payment.update({ where: { id: registration.payment.id }, data: { paymentStatus: "CANCELLED" } });
+    }
+    return tx.registration.update({ where: { id }, data: { registrationStatus: "CANCELLED", holdExpiresAt: null } });
   });
-}
-
-export function registrationWhere(eventId: string, query: string, status: string): Prisma.RegistrationWhereInput {
-  const allowed = new Set(["CONFIRMED", "PENDING_PAYMENT", "CANCELLED"]);
-  const q = query.trim();
-  return {
-    eventId,
-    ...(allowed.has(status) ? { status } : {}),
-    ...(q
-      ? {
-          OR: [
-            { attendeeName: { contains: q } },
-            { email: { contains: q } },
-            { reference: { contains: q } },
-          ],
-        }
-      : {}),
-  };
 }

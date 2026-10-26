@@ -1,86 +1,63 @@
+import Link from "next/link";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { PageIntro } from "@/components/ui";
-import { SpeakerDirectory } from "@/components/speaker-directory";
-import { Portrait } from "@/components/portrait";
-import { DynamicMarker } from "@/components/dynamic-marker";
-import { getPublishedEvent } from "@/lib/event-data";
+import { DemoNote, EmptyState, PageHero } from "@/components/ui";
+import { getPublishedSpeakers } from "@/lib/queries";
+import { inputClass } from "@/lib/styles";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const event = await getPublishedEvent();
-  const title = `Speakers · ${event?.name ?? "THE FUTURE SUMMIT 2027"} · AJ CREATIVES`;
-  const description = "Speaker profiles for The Future Summit. Sample profiles are marked and are not confirmed appearances.";
-  return { title, description, openGraph: { title, description } };
-}
+export const metadata: Metadata = { title: "Speakers", description: "Published speakers across WHY US events." };
 
-export default async function SpeakersPage() {
-  const event = await getPublishedEvent();
-  if (!event) notFound();
+export default function SpeakersPage({ searchParams }: { searchParams: Promise<{ q?: string; expertise?: string }> }) {
   return (
     <>
-      <PageIntro eyebrow={event.settings.organizerName} title="Speakers" description="A directory of the published programme. Anyone marked as a sample profile is fictional demonstration content and has not confirmed participation." />
-      <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
-        <SpeakerDirectory speakers={event.speakers} />
-      </div>
+      <PageHero eyebrow="People" title="Speakers" description="Profiles are published by the organizer. Demonstration profiles are marked and are not confirmed appearances." />
+      <Suspense fallback={<p className="px-4 py-10">Loading speakers…</p>}>
+        <SpeakerResults searchParams={searchParams} />
+      </Suspense>
     </>
   );
 }
 
-export function SpeakerProfilePage({ params }: { params: Promise<{ slug: string }> }) {
+async function SpeakerResults({ searchParams }: { searchParams: Promise<{ q?: string; expertise?: string }> }) {
+  const params = await searchParams;
+  const q = (params.q ?? "").trim().toLowerCase();
+  const expertise = params.expertise ?? "";
+  const speakers = await getPublishedSpeakers();
+  const tags = [...new Set(speakers.flatMap((speaker) => speaker.expertise))].sort();
+  const filtered = speakers.filter((speaker) => {
+    const haystack = `${speaker.name} ${speaker.professionalTitle} ${speaker.organization} ${speaker.biography}`.toLowerCase();
+    if (q && !haystack.includes(q)) return false;
+    if (expertise && !speaker.expertise.includes(expertise)) return false;
+    return true;
+  });
   return (
-    <Suspense fallback={<p className="px-4 py-16">Loading profile…</p>}>
-      <SpeakerProfile params={params} />
-    </Suspense>
-  );
-}
-
-async function SpeakerProfile({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const event = await getPublishedEvent();
-  const speaker = event?.speakers.find((item) => item.slug === slug);
-  if (!event || !speaker) notFound();
-  const sessions = event.sessions.filter((session) => session.speakers.some((person) => person.slug === speaker.slug));
-  return (
-    <>
-      <DynamicMarker />
-      <article className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-ink">
-          <Portrait src={speaker.portraitUrl} name={speaker.name} sample={speaker.isSample || speaker.portraitIsSample} />
+    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+      <form className="grid gap-3 border border-line bg-white p-4 sm:grid-cols-[1fr_1fr_auto]" action="/speakers">
+        <label className="text-sm">Search<input className={inputClass} name="q" defaultValue={params.q ?? ""} /></label>
+        <label className="text-sm">
+          Expertise
+          <select className={inputClass} name="expertise" defaultValue={expertise}>
+            <option value="">All</option>
+            {tags.map((tag) => <option key={tag}>{tag}</option>)}
+          </select>
+        </label>
+        <button className="mt-6 min-h-11 bg-navy px-5 text-xs uppercase tracking-[0.16em] text-white">Filter</button>
+      </form>
+      {filtered.length ? (
+        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((speaker) => (
+            <Link key={speaker.id} href={`/speakers/${speaker.slug}`} className="border border-line bg-white p-5">
+              <div className="grid h-16 w-16 place-items-center bg-paper font-display text-2xl">{speaker.name.slice(0, 1)}</div>
+              <div className="mt-4">{speaker.isDemonstration ? <DemoNote /> : null}</div>
+              <h2 className="mt-3 font-display text-3xl text-navy">{speaker.name}</h2>
+              <p className="text-sm text-ink-soft">{speaker.professionalTitle}{speaker.organization ? `, ${speaker.organization}` : ""}</p>
+              <p className="mt-3 line-clamp-3 text-sm leading-6 text-ink-soft">{speaker.biography}</p>
+            </Link>
+          ))}
         </div>
-        <div>
-          {speaker.isSample ? <p className="rounded-2xl bg-lavender/20 px-4 py-3 text-sm leading-6 text-navy">Sample profile. This person has not confirmed participation, and the biography is placeholder copy.</p> : null}
-          <h1 className="mt-4 font-display text-4xl text-navy sm:text-5xl">{speaker.name}</h1>
-          <p className="mt-3 text-lg text-electric-deep">
-            {speaker.jobTitle} · {speaker.organization}
-          </p>
-          <div className="mt-6 whitespace-pre-wrap leading-8 text-slate">{speaker.biography}</div>
-          {speaker.expertise.length ? (
-            <p className="mt-6 text-sm font-medium text-navy">Expertise: {speaker.expertise.join(", ")}</p>
-          ) : null}
-          {sessions.length ? (
-            <div className="mt-6">
-              <h2 className="font-display text-2xl text-navy">Sessions</h2>
-              <ul className="mt-3 space-y-2">
-                {sessions.map((session) => (
-                  <li key={session.id}>{session.title}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {speaker.socialLinks.length ? (
-            <ul className="mt-6 flex flex-wrap gap-4">
-              {speaker.socialLinks.map((link) => (
-                <li key={link.url}>
-                  <a className="font-semibold text-electric-deep" href={link.url} rel="noreferrer">
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      </article>
-    </>
+      ) : (
+        <div className="mt-8"><EmptyState title="No speakers match" body="Try another name or expertise area." action={{ href: "/speakers", label: "Clear filters" }} /></div>
+      )}
+    </div>
   );
 }

@@ -3,10 +3,14 @@ import { randomBytes } from "node:crypto";
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export function createReference() {
-  const bytes = randomBytes(8);
-  let value = "FS27-";
+  const bytes = randomBytes(10);
+  let value = "WHY-";
   for (const byte of bytes) value += alphabet[byte % alphabet.length];
   return value;
+}
+
+export function createToken() {
+  return randomBytes(32).toString("hex");
 }
 
 export function maskEmail(email: string) {

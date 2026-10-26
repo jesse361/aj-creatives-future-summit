@@ -7,7 +7,8 @@ export default defineConfig({
     fileParallelism: false,
     globalSetup: "./vitest.global-setup.ts",
     env: {
-      DATABASE_URL: "file:./test.db",
+      DATABASE_URL: "postgresql://whyus:whyus_local_only@127.0.0.1:54329/whyus_test",
+      DIRECT_URL: "postgresql://whyus:whyus_local_only@127.0.0.1:54329/whyus_test",
       AUTH_SECRET: "test-secret-value-with-enough-length",
     },
   },

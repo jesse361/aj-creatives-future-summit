@@ -1,73 +1,45 @@
-import { saveSettings } from "@/server/actions/admin";
-import { getAdminEvent } from "@/lib/admin-data";
-import { AdminStatus } from "@/components/admin-nav";
-import { defaultHighlights, defaultWhyAttend } from "@/lib/defaults";
-import { buttonClass, inputClass, labelClass } from "@/lib/styles";
-import type { Highlight, SocialLink, WhyItem } from "@/lib/types";
+import { AdminForm } from "@/components/admin-form";
+import { prisma } from "@/lib/db";
+import { CURRENCIES } from "@/lib/constants";
+import { inputClass, labelClass } from "@/lib/styles";
+import { mediaConfigured } from "@/lib/uploads";
+import { paystackConfigured } from "@/lib/paystack";
+import { saveSettings } from "@/server/actions/admin-settings";
 
 export const instant = false;
 
-function read<T>(value: string, fallback: T): T {
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-export default async function SettingsAdmin({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
-  const [event, query] = await Promise.all([getAdminEvent(), searchParams]);
-  if (!event?.settings) return <p>The event database has not been seeded.</p>;
-  const settings = event.settings;
-  const why = read<WhyItem[]>(settings.whyAttend, defaultWhyAttend);
-  const highlights = read<Highlight[]>(settings.highlights, defaultHighlights);
-  const social = read<SocialLink[]>(settings.socialLinks, []);
+export default async function SettingsAdmin() {
+  const settings = await prisma.siteSettings.findUnique({ where: { id: "site" } });
+  const socials = Array.isArray(settings?.socialLinks) ? settings.socialLinks : [];
+  const first = socials[0] && typeof socials[0] === "object" ? socials[0] as { label?: string; url?: string } : { label: "", url: "" };
   return (
-    <form action={saveSettings} className="grid max-w-3xl gap-4">
-      <h1 className="font-display text-4xl text-navy">Settings and homepage</h1>
-      <AdminStatus saved={query.saved} error={query.error} />
-      <label className={labelClass}>Organizer<input className={inputClass} name="organizerName" defaultValue={settings.organizerName} /></label>
-      <label className={labelClass}>Public email<input className={inputClass} name="contactEmail" defaultValue={settings.contactEmail} /></label>
-      <label className={labelClass}>Public phone<input className={inputClass} name="contactPhone" defaultValue={settings.contactPhone} /></label>
-      <label className={labelClass}>Currency<input className={inputClass} name="currency" defaultValue={settings.currency} /></label>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="currencyConfirmed" defaultChecked={settings.currencyConfirmed} /> Currency is confirmed</label>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="registrationOpen" defaultChecked={settings.registrationOpen} /> Registration is open</label>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="phoneRequired" defaultChecked={settings.phoneRequired} /> Phone number is required</label>
-      <label className={labelClass}>Final call to action<input className={inputClass} name="ctaHeadline" defaultValue={settings.ctaHeadline} /></label>
-      <label className={labelClass}>Call to action description<textarea className={inputClass} name="ctaDescription" rows={2} defaultValue={settings.ctaDescription} /></label>
-      <label className={labelClass}>Next event label<input className={inputClass} name="nextEventLabel" defaultValue={settings.nextEventLabel} /></label>
-      <label className={labelClass}>Next event URL<input className={inputClass} name="nextEventUrl" defaultValue={settings.nextEventUrl} /></label>
-      <fieldset className="grid gap-3">
-        <legend className="font-semibold text-navy">Why attend</legend>
-        {Array.from({ length: 5 }, (_, index) => (
-          <div key={index} className="grid gap-2">
-            <input className={inputClass} name={`whyTitle${index}`} defaultValue={why[index]?.title ?? ""} placeholder="Title" />
-            <textarea className={inputClass} name={`whyDescription${index}`} defaultValue={why[index]?.description ?? ""} rows={2} placeholder="Description" />
-          </div>
-        ))}
-      </fieldset>
-      <fieldset className="grid gap-3">
-        <legend className="font-semibold text-navy">Highlights</legend>
-        {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="grid gap-2">
-            <input className={inputClass} name={`highlightTitle${index}`} defaultValue={highlights[index]?.title ?? ""} placeholder="Title" />
-            <textarea className={inputClass} name={`highlightDescription${index}`} defaultValue={highlights[index]?.description ?? ""} rows={2} />
-            <input className={inputClass} name={`highlightImage${index}`} defaultValue={highlights[index]?.image ?? ""} placeholder="/images/workshop.jpg" />
-          </div>
-        ))}
-      </fieldset>
-      <fieldset className="grid gap-3">
-        <legend className="font-semibold text-navy">Social links</legend>
-        {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="grid gap-2 sm:grid-cols-2">
-            <input className={inputClass} name={`socialLabel${index}`} defaultValue={social[index]?.label ?? ""} placeholder="Label" />
-            <input className={inputClass} name={`socialUrl${index}`} defaultValue={social[index]?.url ?? ""} placeholder="https://" />
-          </div>
-        ))}
-      </fieldset>
-      <label className={labelClass}>Privacy notice<textarea className={inputClass} name="privacyNotice" rows={8} defaultValue={settings.privacyNotice} /></label>
-      <label className={labelClass}>Registration terms<textarea className={inputClass} name="termsText" rows={8} defaultValue={settings.termsText} /></label>
-      <button className={buttonClass("primary", "w-fit")}>Save settings</button>
-    </form>
+    <div className="grid gap-8">
+      <h1 className="font-display text-4xl text-navy">Settings</h1>
+      <ul className="grid gap-1 text-sm text-ink-soft">
+        <li>Payments: {paystackConfigured() ? "Paystack configured" : "Paystack not configured"}</li>
+        <li>Email: {process.env.RESEND_API_KEY || process.env.EMAIL_PROVIDER_API_KEY ? "provider key present" : "not configured"}</li>
+        <li>Media: {mediaConfigured() ? "Blob configured" : "Blob not configured"}</li>
+        <li>Newsletter sync: {process.env.RESEND_AUDIENCE_ID ? "audience id present" : "stored locally only"}</li>
+      </ul>
+      <AdminForm action={saveSettings}>
+        <label className={labelClass}>Brand name<input className={inputClass} name="brandName" defaultValue={settings?.brandName ?? "WHY US"} required /></label>
+        <label className={labelClass}>Legal name<input className={inputClass} name="legalName" defaultValue={settings?.legalName ?? ""} required /></label>
+        <label className={labelClass}>Tagline<input className={inputClass} name="tagline" defaultValue={settings?.tagline ?? ""} required /></label>
+        <label className={labelClass}>Secondary tagline<input className={inputClass} name="secondaryTagline" defaultValue={settings?.secondaryTagline ?? ""} required /></label>
+        <label className={labelClass}>Logo URL<input className={inputClass} name="logoUrl" defaultValue={settings?.logoUrl ?? ""} /></label>
+        <label className={labelClass}>Contact email<input className={inputClass} name="contactEmail" defaultValue={settings?.contactEmail ?? ""} /></label>
+        <label className={labelClass}>Contact phone<input className={inputClass} name="contactPhone" defaultValue={settings?.contactPhone ?? ""} /></label>
+        <label className={labelClass}>Address<textarea className={inputClass} name="address" defaultValue={settings?.address ?? ""} /></label>
+        <label className={labelClass}>Social label<input className={inputClass} name="socialLabel" defaultValue={first.label ?? ""} /></label>
+        <label className={labelClass}>Social URL<input className={inputClass} name="socialUrl" defaultValue={first.url ?? ""} /></label>
+        <label className={labelClass}>Currency<select className={inputClass} name="defaultCurrency" defaultValue={settings?.defaultCurrency ?? "GHS"}>{CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></label>
+        <label className="flex gap-2 text-sm"><input type="checkbox" name="announcementEnabled" defaultChecked={settings?.announcementEnabled ?? false} /> Show announcement</label>
+        <label className={labelClass}>Announcement<input className={inputClass} name="announcement" defaultValue={settings?.announcement ?? ""} /></label>
+        <label className={labelClass}>Footer<textarea className={inputClass} name="footerContent" defaultValue={settings?.footerContent ?? ""} /></label>
+        <label className={labelClass}>SEO title<input className={inputClass} name="seoTitle" defaultValue={settings?.seoTitle ?? ""} /></label>
+        <label className={labelClass}>SEO description<textarea className={inputClass} name="seoDescription" defaultValue={settings?.seoDescription ?? ""} /></label>
+        <label className={labelClass}>Payment hold minutes<input className={inputClass} type="number" name="registrationHoldMinutes" defaultValue={settings?.registrationHoldMinutes ?? 30} /></label>
+      </AdminForm>
+    </div>
   );
 }

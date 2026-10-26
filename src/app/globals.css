@@ -3,15 +3,14 @@
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-space), ui-sans-serif, system-ui, sans-serif;
-  --color-navy: #0a1020;
-  --color-ink: #10182b;
-  --color-electric: #5578ff;
-  --color-electric-deep: #2c4ed8;
-  --color-lavender: #a99bff;
-  --color-mist: #aab4c8;
-  --color-paper: #f5f7fc;
-  --color-slate: #314056;
-  --color-line: #e4e9f4;
+  --color-navy: #0b1020;
+  --color-ink: #151923;
+  --color-electric: #4169ff;
+  --color-gold: #d8b46a;
+  --color-paper: #f7f7f4;
+  --color-mist: #9299a8;
+  --color-line: #e6e4dc;
+  --color-ink-soft: #3c4456;
 }
 
 html {
@@ -19,8 +18,8 @@ html {
 }
 
 body {
-  background: #f5f7fc;
-  color: #314056;
+  background: #f7f7f4;
+  color: #151923;
   font-family: var(--font-sans);
 }
 
@@ -32,8 +31,13 @@ h4 {
 }
 
 ::selection {
-  background: #5578ff;
+  background: #4169ff;
   color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid #4169ff;
+  outline-offset: 3px;
 }
 
 .skip-link {
@@ -41,21 +45,19 @@ h4 {
   left: 1rem;
   top: -4rem;
   z-index: 80;
-  border-radius: 999px;
   background: #ffffff;
-  color: #0a1020;
+  color: #0b1020;
   padding: 0.75rem 1rem;
   font-weight: 600;
 }
 
 .skip-link:focus {
   top: 1rem;
-  outline: 2px solid #2c4ed8;
-  outline-offset: 2px;
 }
 
 .hero-shade {
-  background: linear-gradient(90deg, #0a1020 0%, rgb(10 16 32 / 0.92) 48%, rgb(10 16 32 / 0.4) 100%);
+  background:
+    linear-gradient(90deg, rgb(11 16 32 / 0.92) 0%, rgb(11 16 32 / 0.78) 42%, rgb(11 16 32 / 0.35) 100%);
 }
 
 .hp-field {
@@ -64,6 +66,12 @@ h4 {
   width: 1px;
   height: 1px;
   overflow: hidden;
+}
+
+.gold-rule {
+  height: 1px;
+  width: 4.5rem;
+  background: #d8b46a;
 }
 
 @media (prefers-reduced-motion: reduce) {

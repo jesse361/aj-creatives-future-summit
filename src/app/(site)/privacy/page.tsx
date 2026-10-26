@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
-import { getPublishedEvent } from "@/lib/event-data";
+import { PageHero } from "@/components/ui";
+import { getPage } from "@/lib/settings";
 
-export const metadata: Metadata = {
-  title: "Privacy policy · AJ CREATIVES",
-  description: "How registration and contact information is handled for The Future Summit.",
-};
+export const metadata: Metadata = { title: "Privacy", description: "How WHY US handles personal information." };
 
 export default async function PrivacyPage() {
-  const event = await getPublishedEvent();
+  const page = await getPage("privacy");
   return (
-    <article className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <h1 className="font-display text-4xl text-navy">Privacy policy</h1>
-      <div className="mt-6 whitespace-pre-wrap leading-8 text-slate">{event?.settings.privacyNotice}</div>
-    </article>
+    <>
+      <PageHero eyebrow="Legal" title={page?.title || "Privacy"} description="This notice explains what the site collects. Have it reviewed for your jurisdiction before you rely on it." />
+      <article className="mx-auto max-w-3xl whitespace-pre-line px-4 py-14 text-base leading-7 text-ink-soft sm:px-6">{page?.body}</article>
+    </>
   );
 }

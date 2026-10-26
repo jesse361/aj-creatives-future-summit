@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { SESSION_COOKIE } from "@/lib/constants";
+import type { AdminIdentity } from "@/lib/types";
 
 const TWELVE_HOURS = 1000 * 60 * 60 * 12;
 
@@ -21,13 +22,15 @@ export async function createAdminSession(userId: string) {
   });
 }
 
-export async function getCurrentAdmin() {
+export async function getCurrentAdmin(): Promise<AdminIdentity | null> {
   const jar = await cookies();
   const id = jar.get(SESSION_COOKIE)?.value;
   if (!id) return null;
   const session = await prisma.adminSession.findUnique({ where: { id }, include: { user: true } });
-  if (!session || session.expiresAt.getTime() <= Date.now() || session.user.role !== "ADMIN") return null;
-  return { id: session.user.id, email: session.user.email, role: session.user.role };
+  if (!session || session.expiresAt.getTime() <= Date.now()) return null;
+  if (session.user.status !== "ACTIVE") return null;
+  if (session.user.role !== "OWNER" && session.user.role !== "ADMIN" && session.user.role !== "EDITOR") return null;
+  return { id: session.user.id, email: session.user.email, name: session.user.name, role: session.user.role };
 }
 
 export async function requireAdmin() {

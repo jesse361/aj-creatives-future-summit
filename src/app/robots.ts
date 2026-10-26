@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
+import { appUrl } from "@/lib/app-url";
 
 export default function robots(): MetadataRoute.Robots {
-  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const base = appUrl();
   return {
-    rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/registration", "/api"] },
-    sitemap: `${site}/sitemap.xml`,
+    rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/register/success", "/newsletter/unsubscribe"] },
+    sitemap: `${base}/sitemap.xml`,
   };
 }
