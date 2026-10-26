@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
+import { MediaFill } from "@/components/media-image";
 import { DemoNote } from "@/components/ui";
 import { FORMAT_LABELS } from "@/lib/constants";
-import { coverSrc, eventPlace } from "@/lib/format";
+import { eventPlace } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import { formatDayLabel } from "@/lib/time";
 
@@ -31,7 +31,7 @@ export function EventCard({ event }: { event: CardEvent }) {
   return (
     <article className="flex h-full flex-col border border-line bg-white">
       <div className="relative aspect-[16/10]">
-        <Image src={coverSrc(event.coverImage)} alt={event.coverAlt || "Illustrative event photograph. Not a confirmed WHY US photograph."} fill className="object-cover" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" />
+        <MediaFill src={event.coverImage} alt={event.coverAlt || "Illustrative event photograph. Not a confirmed WHY US photograph."} sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" />
       </div>
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center gap-2">

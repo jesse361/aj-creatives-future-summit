@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { Portrait } from "@/components/media-image";
 import { DemoNote, EmptyState, PageHero } from "@/components/ui";
 import { getPublishedSpeakers } from "@/lib/queries";
 import { inputClass } from "@/lib/styles";
@@ -47,7 +48,7 @@ async function SpeakerResults({ searchParams }: { searchParams: Promise<{ q?: st
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((speaker) => (
             <Link key={speaker.id} href={`/speakers/${speaker.slug}`} className="border border-line bg-white p-5">
-              <div className="grid h-16 w-16 place-items-center bg-paper font-display text-2xl">{speaker.name.slice(0, 1)}</div>
+              <Portrait name={speaker.name} src={speaker.portrait} className="h-16 w-16 text-2xl text-navy" />
               <div className="mt-4">{speaker.isDemonstration ? <DemoNote /> : null}</div>
               <h2 className="mt-3 font-display text-3xl text-navy">{speaker.name}</h2>
               <p className="text-sm text-ink-soft">{speaker.professionalTitle}{speaker.organization ? `, ${speaker.organization}` : ""}</p>

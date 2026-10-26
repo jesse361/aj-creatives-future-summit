@@ -1,12 +1,12 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Countdown } from "@/components/countdown";
+import { MediaFill } from "@/components/media-image";
 import { ScheduleBoard } from "@/components/schedule-board";
 import { ButtonLink, DemoNote } from "@/components/ui";
 import { FORMAT_LABELS } from "@/lib/constants";
-import { coverSrc, eventPlace } from "@/lib/format";
+import { eventPlace } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import { getEventBySlug, relatedEvents, toPublicSession } from "@/lib/queries";
 import { formatDayLabel } from "@/lib/time";
@@ -72,7 +72,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
     <article>
       {jsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} /> : null}
       <header className="relative min-h-[28rem] bg-navy text-white">
-        <Image src={coverSrc(event.coverImage)} alt={event.coverAlt || "Illustrative event photograph. Not a confirmed WHY US photograph."} fill className="object-cover opacity-50" priority sizes="100vw" />
+        <MediaFill src={event.coverImage} alt={event.coverAlt || "Illustrative event photograph. Not a confirmed WHY US photograph."} priority className="object-cover opacity-50" sizes="100vw" />
         <div className="hero-shade absolute inset-0" />
         <div className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
           <div className="flex flex-wrap gap-2">
@@ -176,7 +176,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
         <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-8 sm:grid-cols-3 sm:px-6 lg:px-8">
           {event.gallery.filter((src) => isSafeImageSrc(src)).map((src) => (
             <div key={src} className="relative aspect-[4/3]">
-              <Image src={src} alt="" fill className="object-cover" sizes="33vw" />
+              <MediaFill src={src} alt={`${event.title} gallery photograph`} sizes="33vw" />
             </div>
           ))}
         </section>

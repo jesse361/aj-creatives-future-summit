@@ -230,5 +230,5 @@ export function socialsFromForm(formData: FormData) {
   const urls = formData.getAll("socialUrl").map(String);
   return labels
     .map((label, index) => ({ label: label.trim(), url: (urls[index] ?? "").trim() }))
-    .filter((link) => link.label || link.url);
+    .filter((link) => link.label && link.url);
 }

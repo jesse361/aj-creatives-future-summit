@@ -4,6 +4,7 @@ import { Compass, Handshake, Mic2, Sparkles, Users, Waypoints } from "lucide-rea
 import type { Metadata } from "next";
 import { Countdown } from "@/components/countdown";
 import { EventCard } from "@/components/event-card";
+import { Portrait } from "@/components/media-image";
 import { NewsletterForm } from "@/components/newsletter-form";
 import { ButtonLink, DemoNote, SectionHeading } from "@/components/ui";
 import { FORMAT_LABELS } from "@/lib/constants";
@@ -151,7 +152,7 @@ export default async function HomePage() {
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {speakers.slice(0, 4).map((speaker) => (
                 <Link key={speaker.id} href={`/speakers/${speaker.slug}`} className="group border border-line p-4">
-                  <div className="grid aspect-square place-items-center bg-paper text-4xl font-display text-navy">{speaker.name.slice(0, 1)}</div>
+                  <Portrait name={speaker.name} src={speaker.portrait} className="aspect-square text-4xl text-navy" />
                   <div className="mt-4 flex flex-wrap gap-2">{speaker.isDemonstration ? <DemoNote /> : null}</div>
                   <h3 className="mt-3 font-display text-2xl group-hover:text-electric">{speaker.name}</h3>
                   <p className="text-sm text-ink-soft">{speaker.professionalTitle}</p>

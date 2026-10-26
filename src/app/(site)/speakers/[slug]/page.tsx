@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Portrait } from "@/components/media-image";
 import { DemoNote, PageHero } from "@/components/ui";
 import { getSpeakerBySlug } from "@/lib/queries";
 import { isHttpUrl } from "@/lib/safe-url";
@@ -31,9 +32,8 @@ export default async function SpeakerPage({ params }: { params: Promise<{ slug: 
       <PageHero eyebrow={speaker.professionalTitle} title={speaker.name} description={speaker.organization || "WHY US speaker"} />
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[240px_1fr] lg:px-8">
         <div>
-          <div className="grid aspect-square place-items-center bg-navy font-display text-6xl text-gold">{speaker.name.slice(0, 1)}</div>
+          <Portrait name={speaker.name} src={speaker.portrait} className="aspect-square bg-navy text-6xl text-gold" />
           {speaker.isDemonstration ? <div className="mt-4"><DemoNote /></div> : null}
-          {speaker.portrait ? <p className="mt-3 text-xs text-ink-soft">Portrait on file.</p> : null}
         </div>
         <div>
           <p className="whitespace-pre-line text-lg leading-8">{speaker.biography}</p>
