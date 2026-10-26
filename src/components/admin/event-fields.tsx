@@ -118,10 +118,10 @@ export function EventFields({
       </fieldset>
       <fieldset className="grid gap-3">
         <legend className={labelClass}>Event questions</legend>
-        {[0, 1, 2].map((index) => (
-          <div key={index} className="grid gap-2">
-            <input className={inputClass} name="faqQuestion" placeholder="Question" defaultValue={pairs[index]?.question ?? ""} />
-            <textarea className={inputClass} name="faqAnswer" placeholder="Answer" defaultValue={pairs[index]?.answer ?? ""} />
+        {[...pairs, { question: "", answer: "" }].map((pair, index) => (
+          <div key={`${pair.question}-${index}`} className="grid gap-2">
+            <input className={inputClass} name="faqQuestion" placeholder="Question" defaultValue={pair.question} />
+            <textarea className={inputClass} name="faqAnswer" placeholder="Answer" defaultValue={pair.answer} />
           </div>
         ))}
       </fieldset>

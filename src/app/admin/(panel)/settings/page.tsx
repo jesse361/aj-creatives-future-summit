@@ -1,4 +1,5 @@
 import { AdminForm } from "@/components/admin-form";
+import { SocialLinkFields } from "@/components/admin/social-fields";
 import { prisma } from "@/lib/db";
 import { CURRENCIES } from "@/lib/constants";
 import { inputClass, labelClass } from "@/lib/styles";
@@ -10,8 +11,6 @@ export const instant = false;
 
 export default async function SettingsAdmin() {
   const settings = await prisma.siteSettings.findUnique({ where: { id: "site" } });
-  const socials = Array.isArray(settings?.socialLinks) ? settings.socialLinks : [];
-  const first = socials[0] && typeof socials[0] === "object" ? socials[0] as { label?: string; url?: string } : { label: "", url: "" };
   return (
     <div className="grid gap-8">
       <h1 className="font-display text-4xl text-navy">Settings</h1>
@@ -30,8 +29,7 @@ export default async function SettingsAdmin() {
         <label className={labelClass}>Contact email<input className={inputClass} name="contactEmail" defaultValue={settings?.contactEmail ?? ""} /></label>
         <label className={labelClass}>Contact phone<input className={inputClass} name="contactPhone" defaultValue={settings?.contactPhone ?? ""} /></label>
         <label className={labelClass}>Address<textarea className={inputClass} name="address" defaultValue={settings?.address ?? ""} /></label>
-        <label className={labelClass}>Social label<input className={inputClass} name="socialLabel" defaultValue={first.label ?? ""} /></label>
-        <label className={labelClass}>Social URL<input className={inputClass} name="socialUrl" defaultValue={first.url ?? ""} /></label>
+        <SocialLinkFields links={settings?.socialLinks} />
         <label className={labelClass}>Currency<select className={inputClass} name="defaultCurrency" defaultValue={settings?.defaultCurrency ?? "GHS"}>{CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></label>
         <label className="flex gap-2 text-sm"><input type="checkbox" name="announcementEnabled" defaultChecked={settings?.announcementEnabled ?? false} /> Show announcement</label>
         <label className={labelClass}>Announcement<input className={inputClass} name="announcement" defaultValue={settings?.announcement ?? ""} /></label>

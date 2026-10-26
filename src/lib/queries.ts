@@ -6,12 +6,20 @@ import type { PublicSession } from "@/lib/types";
 
 const publishedEvent = { status: "PUBLISHED" as const };
 
+function dayBound(value: string | undefined, end: boolean) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export type EventFilters = {
   q?: string;
   category?: string;
   format?: string;
   city?: string;
   when?: string;
+  from?: string;
+  to?: string;
   sort?: string;
   page?: number;
 };
@@ -107,6 +115,18 @@ export async function listEvents(filters: EventFilters) {
   const where: Prisma.EventWhereInput = { ...publishedEvent };
   if (filters.when === "past") where.endDate = { lt: now };
   else where.endDate = { gte: now };
+  const from = dayBound(filters.from, false);
+  const to = dayBound(filters.to, true);
+  if (from || to) {
+    const startDate: Prisma.DateTimeFilter = {};
+    if (from) startDate.gte = from;
+    if (to) startDate.lte = to;
+    if (from && to && from > to) {
+      startDate.gte = dayBound(filters.to, false) ?? from;
+      startDate.lte = dayBound(filters.from, true) ?? to;
+    }
+    where.startDate = startDate;
+  }
   if (filters.category) where.category = filters.category;
   if (filters.city) where.city = { equals: filters.city, mode: "insensitive" };
   if (filters.format === "ONLINE" || filters.format === "IN_PERSON" || filters.format === "HYBRID") where.eventFormat = filters.format;

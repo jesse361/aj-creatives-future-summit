@@ -75,10 +75,12 @@ export async function registerAttendee(input: RegistrationInput, options?: { pay
     }
 
     const event = await tx.event.findUnique({ where: { id: input.eventId } });
-    if (!event || event.status !== "PUBLISHED") throw new RegistrationError("CLOSED", "Registration is not open for that event.");
-    if (event.status === "PUBLISHED" && !event.registrationOpen) {
-      throw new RegistrationError("CLOSED", "Registration is currently closed.");
+    if (!event) throw new RegistrationError("NOT_FOUND", "That event is not available.");
+    if (event.status === "CANCELLED") throw new RegistrationError("CANCELLED", "This event has been cancelled.");
+    if (event.status !== "PUBLISHED" || !event.registrationOpen) {
+      throw new RegistrationError("CLOSED", "Registration is not open for that event.");
     }
+    if (event.endDate < new Date()) throw new RegistrationError("CLOSED", "This event has ended.");
 
     const ticket = await tx.ticketType.findFirst({ where: { id: input.ticketTypeId, eventId: event.id } });
     if (!ticket || ticket.status !== "ACTIVE") throw new RegistrationError("UNAVAILABLE", "That ticket is not available.");

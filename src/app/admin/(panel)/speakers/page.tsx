@@ -1,4 +1,5 @@
 import { AdminForm } from "@/components/admin-form";
+import { SocialLinkFields } from "@/components/admin/social-fields";
 import { prisma } from "@/lib/db";
 import { inputClass, labelClass } from "@/lib/styles";
 import { deleteSpeaker, saveSpeaker } from "@/server/actions/admin-content";
@@ -11,7 +12,6 @@ export default async function SpeakersAdmin({ searchParams }: { searchParams: Pr
     prisma.speaker.findMany({ orderBy: { name: "asc" } }),
     id ? prisma.speaker.findUnique({ where: { id } }) : Promise.resolve(null),
   ]);
-  const links = Array.isArray(current?.socialLinks) ? current.socialLinks : [];
   return (
     <div className="grid gap-8">
       <h1 className="font-display text-4xl text-navy">Speakers</h1>
@@ -30,8 +30,7 @@ export default async function SpeakersAdmin({ searchParams }: { searchParams: Pr
         <label className={labelClass}>Portrait URL<input className={inputClass} name="portrait" defaultValue={current?.portrait ?? ""} /></label>
         <label className={labelClass}>Portrait alt<input className={inputClass} name="portraitAlt" defaultValue={current?.portraitAlt ?? ""} /></label>
         <label className={labelClass}>Expertise, one per line<textarea className={inputClass} name="expertise" defaultValue={current?.expertise.join("\n") ?? ""} /></label>
-        <label className={labelClass}>Social label<input className={inputClass} name="socialLabel" defaultValue={typeof links[0] === "object" && links[0] && "label" in links[0] ? String(links[0].label) : ""} /></label>
-        <label className={labelClass}>Social URL<input className={inputClass} name="socialUrl" defaultValue={typeof links[0] === "object" && links[0] && "url" in links[0] ? String(links[0].url) : ""} /></label>
+        <SocialLinkFields links={current?.socialLinks} />
         <label className={labelClass}>Status<select className={inputClass} name="status" defaultValue={current?.status ?? "DRAFT"}><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option></select></label>
         <label className="flex gap-2 text-sm"><input type="checkbox" name="featured" defaultChecked={current?.featured ?? false} /> Featured</label>
         <label className="flex gap-2 text-sm"><input type="checkbox" name="isDemonstration" defaultChecked={current?.isDemonstration ?? false} /> Demonstration profile</label>

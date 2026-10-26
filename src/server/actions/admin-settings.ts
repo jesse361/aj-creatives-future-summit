@@ -85,6 +85,15 @@ export async function deleteFaq(formData: FormData) {
   refreshPages();
 }
 
+export async function deleteTestimonial(formData: FormData) {
+  const { admin, error } = await guard("content");
+  if (!admin || error) return;
+  const id = String(formData.get("id") ?? "");
+  await prisma.testimonial.delete({ where: { id } }).catch(() => null);
+  await writeAudit(admin, "testimonial.delete", "Testimonial", id, "Testimonial removed");
+  refreshPages();
+}
+
 export async function saveTestimonial(_previous: FormState, formData: FormData): Promise<FormState> {
   const { admin, error } = await guard("content");
   if (!admin || error) return { ok: false, message: error ?? "Unauthorized" };

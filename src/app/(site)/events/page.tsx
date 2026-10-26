@@ -36,6 +36,8 @@ async function EventResults({ searchParams }: { searchParams: Promise<Search> })
     format: one(params.format),
     city: one(params.city),
     when: one(params.when) || "upcoming",
+    from: one(params.from),
+    to: one(params.to),
     sort: one(params.sort) || "soonest",
     page: Number(one(params.page) || "1"),
   };
@@ -87,6 +89,14 @@ async function EventResults({ searchParams }: { searchParams: Promise<Search> })
             <option value="upcoming">Upcoming</option>
             <option value="past">Past</option>
           </select>
+        </label>
+        <label className="text-sm">
+          From
+          <input className={inputClass} type="date" name="from" defaultValue={filters.from} />
+        </label>
+        <label className="text-sm">
+          To
+          <input className={inputClass} type="date" name="to" defaultValue={filters.to} />
         </label>
         <label className="text-sm">
           Sort
